@@ -10,6 +10,9 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
       success: false,
       message: mappedError.message,
       code: mappedError.code,
+      ...(mappedError.details !== undefined && {
+        details: mappedError.details,
+      }),
     });
   }
 
