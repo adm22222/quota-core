@@ -1,0 +1,840 @@
+openapi: 3.0.3
+info:
+  title: Quota Service API
+  version: 1.0.0
+  description: |
+    Backend service that other applications call to meter usage of a single resource ("units")
+    and to decide whether one of their users may perform an action.
+
+    Every consume request is checked against **two plans at once**: the calling account's plan
+    (shared by all its users) and the individual user's plan. A request is accepted only if all
+    four checks pass; otherwise nothing is consumed.
+
+    **Conventions**
+    * Authentication: `X-API-Key` header on every route except `POST /v1/accounts` and `GET /health`.
+    * The account is always taken from the API key, never from the URL or body.
+    * Months are UTC calendar months written `YYYY-MM`.
+    * A rejected consume request is a normal business outcome: HTTP 200 with `accepted: false`.
+    * Rule order used to pick the primary rejection reason (assumption Q7):
+      1. account per-request, 2. user per-request, 3. account monthly, 4. user monthly.
+    * Resources of another account are reported as `404` (existence is not revealed).
+servers:
+  - url: http://localhost:3000
+    description: Local Docker Compose stack
+tags:
+  - name: Accounts
+  - name: Users
+  - name: Plans
+  - name: Consumption
+  - name: Usage and history
+  - name: Operations
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Operations]
+      summary: Liveness and database check
+      security: []
+      responses:
+        '200':
+          description: Service and database are reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+        '503':
+          description: Database unreachable
+
+  /v1/accounts:
+    post:
+      tags: [Accounts]
+      summary: Create an account and issue its API key
+      description: |
+        Creates an account without API-key authentication. The API key is returned in plaintext only once; only its SHA-256 hash is stored. If planId is omitted, the account receives the predefined Starter plan. If planId is provided, it must identify a predefined ACCOUNT-scope plan. Custom plans cannot be selected during public account creation. Public account creation must be protected by rate limiting and appropriate abuse-prevention controls.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAccountRequest' }
+            example: { name: Adam Documents }
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateAccountResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/PlanScopeMismatch' }
+
+  /v1/account:
+    get:
+      tags: [Accounts]
+      summary: Get the calling account and its current plan and limits
+      responses:
+        '200':
+          description: The account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/account/plan:
+    put:
+      tags: [Accounts]
+      summary: Switch the account plan
+      description: Consumed units are preserved; no fresh monthly allowance is granted. Applies to the next request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignPlanRequest' }
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/PlanScopeMismatch' }
+
+  /v1/users:
+    post:
+      tags: [Users]
+      summary: Register a user under the calling account
+      description: The user starts on the Basic plan unless `planId` is given.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+            example:
+              { userRef: alice, planId: 3f1c0c2e-1d0a-4c55-9a41-2f6c6f0a7a10 }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A user with this `userRef` already exists in the account (`user_exists`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/PlanScopeMismatch' }
+    get:
+      tags: [Users]
+      summary: List the account's users
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: A page of users
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+                  nextCursor: { type: string, nullable: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/users/{userRef}:
+    parameters:
+      - { $ref: '#/components/parameters/UserRef' }
+    get:
+      tags: [Users]
+      summary: Get one user with the plan and limits currently applied
+      responses:
+        '200':
+          description: The user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/users/{userRef}/plan:
+    parameters:
+      - { $ref: '#/components/parameters/UserRef' }
+    put:
+      tags: [Users]
+      summary: Switch a user's plan
+      description: Consumed units are preserved; no fresh monthly allowance is granted. Applies to the next request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignPlanRequest' }
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/PlanScopeMismatch' }
+
+  /v1/plans:
+    get:
+      tags: [Plans]
+      summary: List predefined plans and the account's custom plans
+      parameters:
+        - name: scope
+          in: query
+          schema: { $ref: '#/components/schemas/PlanScope' }
+      responses:
+        '200':
+          description: Plans visible to the account
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Plan' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Plans]
+      summary: Create a custom plan
+      description: Custom plans belong exclusively to the account that created them. Only users within that account may be assigned to those plans. Multiple users in the same account may share a plan definition, while each user's consumption is tracked independently. Predefined plans are global and read-only. Cross-account sharing of custom plans is not supported.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePlanRequest' }
+            example:
+              {
+                name: Team-X,
+                scope: USER,
+                monthlyAllowance: 1000,
+                maxPerRequest: 20,
+              }
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plan' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Plan name already used by this account for this scope (`plan_name_taken`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/plans/{planId}:
+    parameters:
+      - name: planId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Plans]
+      summary: View a plan
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plan' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Plans]
+      summary: Update a custom plan (full replacement of the limits)
+      description: |
+        Fully replaces the mutable fields of a custom plan. Updates take effect for consumption decisions that are serialized after the plan update commits. Usage totals and request history are never modified by a plan update. If monthlyAllowance drops below current consumption, remaining is 0 and further consumption is rejected until permitted by the applicable limits. Predefined plans are read-only. Concurrent plan updates and consumption decisions must be coordinated transactionally by the implementation so that each decision uses a consistent set of plan limits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePlanRequest' }
+            example: { monthlyAllowance: 100, maxPerRequest: 20 }
+      responses:
+        '200':
+          description: Updated plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plan' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Predefined plans are read-only (`plan_read_only`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Plan name already used (`plan_name_taken`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/consume:
+    post:
+      tags: [Consumption]
+      summary: Consume units for a user (accept or reject atomically)
+      description: |
+        Checks account per-request, user per-request, account monthly and user monthly rules.
+        The full amount is accepted only if all pass; a rejection consumes nothing.
+
+        **Retries.** `requestId` is unique per account. Repeating it with the same `userRef` and
+        `units` returns the stored decision with `replayed: true` and changes nothing (rejections
+        are replayed too, never re-evaluated). Reusing it with a different payload returns 409.
+        For a replay, the `account` and `user` blocks show the state right after the original decision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsumeRequest' }
+            example:
+              { userRef: alice, units: 25, requestId: doc-8841-attempt-1 }
+      responses:
+        '200':
+          description: Decision made (accepted or rejected)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsumeResponse' }
+              examples:
+                accepted:
+                  summary: Accepted
+                  value:
+                    requestId: doc-8841-attempt-1
+                    userRef: alice
+                    units: 10
+                    accepted: true
+                    replayed: false
+                    reason: null
+                    violations: []
+                    month: '2026-10'
+                    processedAt: '2026-10-12T09:14:03Z'
+                    account:
+                      {
+                        planId: 5a0e1d7c-0000-4000-8000-000000000001,
+                        planName: Starter,
+                        monthlyAllowance: 10000,
+                        maxPerRequest: 100,
+                        consumed: 340,
+                        remaining: 9660,
+                      }
+                    user:
+                      {
+                        planId: 5a0e1d7c-0000-4000-8000-000000000003,
+                        planName: Basic,
+                        monthlyAllowance: 1000,
+                        maxPerRequest: 20,
+                        consumed: 140,
+                        remaining: 860,
+                      }
+                rejectedByUserLimit:
+                  summary: Rejected by the user's per-request limit
+                  value:
+                    requestId: doc-8842
+                    userRef: alice
+                    units: 25
+                    accepted: false
+                    replayed: false
+                    reason:
+                      {
+                        level: USER,
+                        rule: MAX_PER_REQUEST,
+                        limit: 20,
+                        attempted: 25,
+                      }
+                    violations:
+                      - {
+                          level: USER,
+                          rule: MAX_PER_REQUEST,
+                          limit: 20,
+                          attempted: 25,
+                        }
+                    month: '2026-10'
+                    processedAt: '2026-10-12T09:14:09Z'
+                    account:
+                      {
+                        planId: 5a0e1d7c-0000-4000-8000-000000000001,
+                        planName: Starter,
+                        monthlyAllowance: 10000,
+                        maxPerRequest: 100,
+                        consumed: 340,
+                        remaining: 9660,
+                      }
+                    user:
+                      {
+                        planId: 5a0e1d7c-0000-4000-8000-000000000003,
+                        planName: Basic,
+                        monthlyAllowance: 1000,
+                        maxPerRequest: 20,
+                        consumed: 140,
+                        remaining: 860,
+                      }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`requestId` was already used with a different `userRef` or `units` (`request_id_reused_with_different_payload`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/usage:
+    get:
+      tags: [Usage and history]
+      summary: Consumed and remaining units for the account and its users
+      description: |
+        Defaults to the current UTC calendar month. For any requested month, consumed reports the actual units consumed during that month. monthlyAllowance and maxPerRequest reflect the plans assigned at the time of the query, not necessarily the plans that applied during the requested month. remaining is calculated using the current monthly allowance and the actual consumption for the requested month, and is never negative. For past months, remaining is not a historical end-of-month balance. See /v1/history for request-level snapshots of the limits and usage recorded when each decision was made. Future months are rejected with HTTP 400.
+      parameters:
+        - { $ref: '#/components/parameters/Month' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: Account usage plus a page of user usage
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/users/{userRef}/usage:
+    parameters:
+      - { $ref: '#/components/parameters/UserRef' }
+    get:
+      tags: [Usage and history]
+      summary: One user's usage with the account's usage alongside
+      parameters:
+        - { $ref: '#/components/parameters/Month' }
+      responses:
+        '200':
+          description: User and account usage for the month
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserUsageResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/history:
+    get:
+      tags: [Usage and history]
+      summary: Request history and outcomes (newest first)
+      description: |
+        Returns request history in descending chronological order. Each entry records the decision and a snapshot of the account's and user's limits and usage immediately after that decision. Later plan changes do not rewrite these historical snapshots. Use /v1/usage for monthly consumption summaries.
+      parameters:
+        - { name: userRef, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Month' }
+        - {
+            name: outcome,
+            in: query,
+            schema: { $ref: '#/components/schemas/Outcome' },
+          }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: A page of history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/HistoryItem' }
+                  nextCursor: { type: string, nullable: true }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Issued once by `POST /v1/accounts`. Identifies the calling account.
+
+  parameters:
+    UserRef:
+      name: userRef
+      in: path
+      required: true
+      description: The caller's own identifier for the user, unique within the account.
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    Month:
+      name: month
+      in: query
+      description: UTC calendar month, `YYYY-MM`. Defaults to the current month.
+      schema:
+        { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2026-10' }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque value from a previous response's `nextCursor`.
+      schema: { type: string }
+
+  responses:
+    ValidationError:
+      description: Invalid input (`validation_error`). Not recorded in history.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              {
+                code: validation_error,
+                message: units must be a positive integer,
+                details: { field: units },
+              }
+    Unauthorized:
+      description: Missing or invalid API key (`invalid_api_key`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found, or it belongs to another account (`user_not_found` / `plan_not_found`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PlanScopeMismatch:
+      description: The plan's scope does not match the target, e.g. a USER plan assigned to an account (`plan_scope_mismatch`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_api_key
+                - validation_error
+                - user_not_found
+                - plan_not_found
+                - plan_read_only
+                - plan_scope_mismatch
+                - plan_name_taken
+                - user_exists
+                - request_id_reused_with_different_payload
+                - internal_error
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+
+    PlanScope:
+      type: string
+      enum: [ACCOUNT, USER]
+    Outcome:
+      type: string
+      enum: [ACCEPTED, REJECTED]
+    Level:
+      type: string
+      enum: [ACCOUNT, USER]
+    RuleType:
+      type: string
+      enum: [MAX_PER_REQUEST, MONTHLY_ALLOWANCE]
+
+    Plan:
+      type: object
+      required:
+        [
+          id,
+          name,
+          scope,
+          isPredefined,
+          monthlyAllowance,
+          maxPerRequest,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        scope: { $ref: '#/components/schemas/PlanScope' }
+        isPredefined:
+          {
+            type: boolean,
+            description: Predefined plans are global and read-only.,
+          }
+        monthlyAllowance:
+          {
+            type: integer,
+            minimum: 1,
+            description: Units per UTC calendar month.,
+          }
+        maxPerRequest:
+          {
+            type: integer,
+            minimum: 1,
+            description: Largest amount in a single request.,
+          }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreatePlanRequest:
+      type: object
+      required: [name, scope, monthlyAllowance, maxPerRequest]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        scope: { $ref: '#/components/schemas/PlanScope' }
+        monthlyAllowance: { type: integer, minimum: 1, maximum: 1000000000 }
+        maxPerRequest: { type: integer, minimum: 1, maximum: 1000000000 }
+
+    UpdatePlanRequest:
+      type: object
+      required: [monthlyAllowance, maxPerRequest]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        monthlyAllowance: { type: integer, minimum: 1, maximum: 1000000000 }
+        maxPerRequest: { type: integer, minimum: 1, maximum: 1000000000 }
+
+    AssignPlanRequest:
+      type: object
+      required: [planId]
+      properties:
+        planId: { type: string, format: uuid }
+
+    CreateAccountRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        planId:
+          {
+            type: string,
+            format: uuid,
+            description: 'Optional ACCOUNT-scope plan. Default: Starter.',
+          }
+
+    Account:
+      type: object
+      required: [id, name, plan, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        plan: { $ref: '#/components/schemas/Plan' }
+        createdAt: { type: string, format: date-time }
+
+    CreateAccountResponse:
+      type: object
+      required: [account, apiKey]
+      properties:
+        account: { $ref: '#/components/schemas/Account' }
+        apiKey:
+          type: string
+          description: Shown only once. Store it securely; the service keeps only a hash.
+          example: mk_live_9fK2xQ7c0pVbT3sLhYw8aZnR5dEuJm41
+
+    CreateUserRequest:
+      type: object
+      required: [userRef]
+      properties:
+        userRef:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:@-]+$'
+          description: Caller's own user identifier, unique within the account.
+        planId:
+          {
+            type: string,
+            format: uuid,
+            description: 'Optional USER-scope plan. Default: Basic.',
+          }
+
+    User:
+      type: object
+      required: [userRef, plan, createdAt]
+      properties:
+        userRef: { type: string }
+        plan: { $ref: '#/components/schemas/Plan' }
+        createdAt: { type: string, format: date-time }
+
+    LevelStatus:
+      type: object
+      description: Plan limits and usage at one level (account or user) for the month.
+      required:
+        [planId, planName, monthlyAllowance, maxPerRequest, consumed, remaining]
+      properties:
+        planId: { type: string, format: uuid }
+        planName: { type: string }
+        monthlyAllowance: { type: integer }
+        maxPerRequest: { type: integer }
+        consumed: { type: integer, minimum: 0 }
+        remaining:
+          type: integer
+          minimum: 0
+          description: max(0, monthlyAllowance - consumed). Never negative.
+
+    Violation:
+      type: object
+      required: [level, rule, limit, attempted]
+      properties:
+        level: { $ref: '#/components/schemas/Level' }
+        rule: { $ref: '#/components/schemas/RuleType' }
+        limit:
+          type: integer
+          description: For MAX_PER_REQUEST the cap; for MONTHLY_ALLOWANCE the units remaining at that level.
+        attempted: { type: integer }
+
+    NullableViolation:
+      type: object
+      nullable: true
+      description: >
+        Primary rejection reason. Null when the request is accepted;
+        otherwise contains the first failing rule.
+      required: [level, rule, limit, attempted]
+      properties:
+        level:
+          $ref: '#/components/schemas/Level'
+        rule:
+          $ref: '#/components/schemas/RuleType'
+        limit:
+          type: integer
+          description: >
+            For MAX_PER_REQUEST, the request cap.
+            For MONTHLY_ALLOWANCE, the units remaining at that level.
+        attempted:
+          type: integer
+
+    ConsumeRequest:
+      type: object
+      required: [userRef, units, requestId]
+      properties:
+        userRef: { type: string, minLength: 1, maxLength: 128 }
+        units:
+          {
+            type: integer,
+            minimum: 1,
+            maximum: 1000000000,
+            description: Positive whole number.,
+          }
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Caller-chosen, unique per account. Reuse it when retrying.
+
+    ConsumeResponse:
+      type: object
+      required:
+        [
+          requestId,
+          userRef,
+          units,
+          accepted,
+          replayed,
+          violations,
+          month,
+          processedAt,
+          account,
+          user,
+        ]
+      properties:
+        requestId: { type: string }
+        userRef: { type: string }
+        units: { type: integer }
+        accepted: { type: boolean }
+        replayed:
+          {
+            type: boolean,
+            description: True when this is the stored decision of an earlier identical request.,
+          }
+        reason: { $ref: '#/components/schemas/NullableViolation' }
+        violations:
+          type: array
+          description: Every rule that failed. Empty when accepted.
+          items: { $ref: '#/components/schemas/Violation' }
+        month: { type: string, example: '2026-10' }
+        processedAt: { type: string, format: date-time }
+        account: { $ref: '#/components/schemas/LevelStatus' }
+        user: { $ref: '#/components/schemas/LevelStatus' }
+
+    UserLevelStatus:
+      allOf:
+        - $ref: '#/components/schemas/LevelStatus'
+        - type: object
+          required: [userRef]
+          properties:
+            userRef: { type: string }
+
+    UsageResponse:
+      type: object
+      required: [month, account, users]
+      properties:
+        month: { type: string, example: '2026-10' }
+        account: { $ref: '#/components/schemas/LevelStatus' }
+        users:
+          type: array
+          items: { $ref: '#/components/schemas/UserLevelStatus' }
+        nextCursor: { type: string, nullable: true }
+
+    UserUsageResponse:
+      type: object
+      required: [month, user, account]
+      properties:
+        month: { type: string }
+        user: { $ref: '#/components/schemas/UserLevelStatus' }
+        account: { $ref: '#/components/schemas/LevelStatus' }
+
+    HistoryItem:
+      type: object
+      required:
+        [
+          requestId,
+          userRef,
+          units,
+          outcome,
+          violations,
+          month,
+          processedAt,
+          account,
+          user,
+        ]
+      properties:
+        requestId: { type: string }
+        userRef: { type: string }
+        units: { type: integer }
+        outcome: { $ref: '#/components/schemas/Outcome' }
+        reason: { $ref: '#/components/schemas/NullableViolation' }
+        violations:
+          type: array
+          items: { $ref: '#/components/schemas/Violation' }
+        month: { type: string }
+        processedAt: { type: string, format: date-time }
+        account:
+          allOf:
+            - $ref: '#/components/schemas/LevelStatus'
+          description: Snapshot of the account limits and usage right after this decision.
+        user:
+          allOf:
+            - $ref: '#/components/schemas/LevelStatus'
+          description: Snapshot of the user limits and usage right after this decision.
