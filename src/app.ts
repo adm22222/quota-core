@@ -1,13 +1,13 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express } from 'express';
+import appRoutes from './api.routes.ts';
+import { errorMiddleware } from './middleware/error-handler.ts';
 
 const app: Express = express();
-const port = 3000;
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello World!');
-});
+app.use(express.json());
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
-});
-const test = 0;
+app.use('/api/v1/', appRoutes);
+
+app.use(errorMiddleware);
+
+export default app;
