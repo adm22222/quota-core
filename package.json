@@ -10,7 +10,13 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "prisma:format": "prisma format",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "keywords": [],
   "author": "",

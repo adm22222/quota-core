@@ -1,0 +1,155 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+enum PlanScope {
+  ACCOUNT
+  USER
+
+  @@map("plan_scope")
+}
+
+enum Outcome {
+  ACCEPTED
+  REJECTED
+
+  @@map("outcome")
+}
+
+enum RuleLevel {
+  ACCOUNT
+  USER
+
+  @@map("rule_level")
+}
+
+enum RuleType {
+  MAX_PER_REQUEST
+  MONTHLY_ALLOWANCE
+
+  @@map("rule_type")
+}
+
+model Account {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  accountPlanId String   @map("account_plan_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  accountPlan Plan                  @relation("AccountPlan", fields: [accountPlanId], references: [id], onDelete: Restrict)
+  ownedPlans  Plan[]                @relation("PlanOwner")
+  apiKeys     ApiKey[]
+  users       User[]
+  usage       AccountMonthlyUsage[]
+  userUsage   UserMonthlyUsage[]
+  requests    ConsumptionRequest[]
+
+  @@map("accounts")
+}
+
+model ApiKey {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  keyHash   String   @unique @map("key_hash") 
+  keyPrefix String   @map("key_prefix")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("api_keys")
+}
+
+model User {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  externalUserId String   @map("external_user_id")
+  userPlanId     String   @map("user_plan_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account  Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userPlan Plan                 @relation("UserPlan", fields: [userPlanId], references: [id], onDelete: Restrict)
+  usage    UserMonthlyUsage[]
+  requests ConsumptionRequest[]
+
+  @@unique([accountId, externalUserId])
+  @@unique([id, accountId])
+  @@index([userPlanId])
+  @@map("users")
+}
+
+model Plan {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  scope            PlanScope
+  ownerAccountId   String?   @map("owner_account_id") @db.Uuid
+  isPredefined     Boolean   @default(false) @map("is_predefined")
+  monthlyAllowance Int       @map("monthly_allowance")
+  maxPerRequest    Int       @map("max_per_request") 
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner         Account?  @relation("PlanOwner", fields: [ownerAccountId], references: [id], onDelete: Restrict)
+  accountsUsing Account[] @relation("AccountPlan")
+  usersUsing    User[]    @relation("UserPlan")
+
+  @@unique([ownerAccountId, scope, name])
+  @@map("plans")
+}
+
+model AccountMonthlyUsage {
+  accountId String   @map("account_id") @db.Uuid
+  month     DateTime @db.Date
+  consumed  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, month])
+  @@map("account_monthly_usage")
+}
+
+model UserMonthlyUsage {
+  userId    String   @map("user_id") @db.Uuid
+  month     DateTime @db.Date
+  accountId String   @map("account_id") @db.Uuid
+  consumed  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId, accountId], references: [id, accountId], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([userId, month])
+  @@index([accountId, month])
+  @@map("user_monthly_usage")
+}
+
+model ConsumptionRequest {
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId          String     @map("account_id") @db.Uuid
+  userId             String     @map("user_id") @db.Uuid
+  requestId          String     @map("request_id")
+  units              Int
+  payloadFingerprint String     @map("payload_fingerprint")
+
+  outcome            Outcome?
+  rejectedRule       RuleType?  @map("rejected_rule")
+  rejectedLevel      RuleLevel? @map("rejected_level")
+  violations         Json       @default("[]")
+  limitsSnapshot     Json?      @map("limits_snapshot")
+  month              DateTime   @db.Date
+  processedAt        DateTime   @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId, accountId], references: [id, accountId], onDelete: Cascade)
+
+  @@unique([accountId, requestId])
+  @@index([accountId, processedAt(sort: Desc), id])
+  @@index([userId, processedAt(sort: Desc), id])
+  @@map("consumption_requests")
+}
