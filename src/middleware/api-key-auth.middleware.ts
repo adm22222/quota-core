@@ -7,7 +7,7 @@ export const createAuthenticateMiddleware = (
 ): RequestHandler => {
   return async (req, _res, next) => {
     try {
-      const apiKey = req.header('X-API-Key');
+      const apiKey = req.get('X-API-Key');
 
       if (!apiKey) {
         throw new UnauthorizedError('Missing API key');

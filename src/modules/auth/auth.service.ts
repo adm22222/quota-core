@@ -5,22 +5,21 @@ import type {
 } from './api-key.repository.ts';
 import { hashApiKey } from './api-key.ts';
 
-export interface AuthService {
-  authenticateApiKey(apiKey: string): Promise<AuthenticatedAccount | null>;
-}
+export const createAuthService = (apiKeyRepo: ApiKeyRepository) => ({
+  async authenticateApiKey(apiKey: string): Promise<AuthenticatedAccount> {
+    if (!apiKey.startsWith('qtc_')) {
+      throw new UnauthorizedError('Invalid API key');
+    }
+    console.log('test api', apiKey);
+    const keyHash = hashApiKey(apiKey);
+    const account = await apiKeyRepo.findAccountByKeyHash(keyHash);
+    console.log('test account', account);
+    if (!account) {
+      throw new UnauthorizedError('Invalid API key');
+    }
 
-export const createAuthService = (apiKeyRepo: ApiKeyRepository) => {
-  return {
-    async authenticateApiKey(apiKey: string) {
-      if (!apiKey.startsWith('qtc_')) {
-        throw new UnauthorizedError('Invalid API key');
-      }
-      const keyHash = hashApiKey(apiKey);
-      const account = await apiKeyRepo.findAccountByKeyHash(keyHash);
-      if (!account) {
-        throw new UnauthorizedError('Invalid API key');
-      }
-      return account;
-    },
-  };
-};
+    return account;
+  },
+});
+
+export type AuthService = ReturnType<typeof createAuthService>;

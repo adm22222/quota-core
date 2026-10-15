@@ -41,4 +41,10 @@ export const createAccountService = (db: PrismaClient) => ({
       apiKey,
     };
   },
+  async getAccountByApiKey(apikey: string) {
+    const apiKeyRepo = createApiKeyRepository(db);
+    const hash = hashApiKey(apikey);
+    const account = await apiKeyRepo.findAccountByKeyHash(hash);
+    return account;
+  },
 });

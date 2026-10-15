@@ -20,3 +20,9 @@ export const createAccountController = (
     }
   };
 };
+
+export const getCurrentAccountController: RequestHandler = (req, res) => {
+  res.status(200).json({
+    account: req.account,
+  });
+};
