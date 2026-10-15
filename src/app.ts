@@ -1,15 +1,17 @@
 import express, { type Express } from 'express';
-import appRoutes from './api.routes.ts';
 import { errorMiddleware } from './middleware/error-handler.ts';
 import { requestLogger } from './middleware/request-logger.ts';
+import { apiRoutes } from './container.ts';
+import healthRoutes from './modules/health/health.routes.ts';
 
 const app: Express = express();
 
 app.use(requestLogger);
-
 app.use(express.json());
 
-app.use('/api/v1/', appRoutes);
+app.use('/health', healthRoutes);
+
+app.use('/api/v1', apiRoutes);
 
 app.use(errorMiddleware);
 

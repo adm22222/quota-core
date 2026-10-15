@@ -1,8 +1,14 @@
 import { Router } from 'express';
 import healthRoutes from './modules/health/health.routes.ts';
 
-const router = Router();
+interface ApiRoutesDependencies {
+  accountRoutes: Router;
+}
 
-router.use('/health', healthRoutes);
+export const createApiRoutes = ({ accountRoutes }: ApiRoutesDependencies) => {
+  const router = Router();
+  router.use('/health', healthRoutes);
+  router.use('/accounts', accountRoutes);
 
-export default router;
+  return router;
+};
