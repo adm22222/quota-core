@@ -1,9 +1,13 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.ts';
-import { createAccountSchema } from './accounts.schema.ts';
+import {
+  createAccountSchema,
+  updateAccountPlanSchema,
+} from './accounts.schema.ts';
 import {
   createAccountController,
   getCurrentAccountController,
+  updateAccountPlanController,
   type AccountService,
 } from './accounts.controller.ts';
 import type { AuthService } from '../auth/auth.service.ts';
@@ -18,17 +22,20 @@ export const createAccountRoutes = ({
   authService,
 }: AccountRoutesDependencies) => {
   const router = Router();
-
+  const authenticate = createAuthenticateMiddleware(authService);
   router.post(
     '/',
     validate(createAccountSchema),
     createAccountController(accountService),
   );
 
-  router.get(
-    '/',
-    createAuthenticateMiddleware(authService),
-    getCurrentAccountController,
+  router.get('/', authenticate, getCurrentAccountController);
+
+  router.put(
+    '/plan',
+    authenticate,
+    validate(updateAccountPlanSchema),
+    updateAccountPlanController(accountService),
   );
 
   return router;

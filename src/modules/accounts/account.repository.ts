@@ -29,4 +29,31 @@ export const createAccountRepository = (db: AccountDb) => ({
       },
     });
   },
+
+  findPlanById(id: string) {
+    return db.plan.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        scope: true,
+        isPredefined: true,
+        ownerAccountId: true,
+        monthlyAllowance: true,
+        maxPerRequest: true,
+      },
+    });
+  },
+
+  updateAccountPlan(accountId: string, planId: string) {
+    return db.account.update({
+      where: { id: accountId },
+      data: { accountPlanId: planId },
+      select: {
+        id: true,
+        name: true,
+        accountPlanId: true,
+      },
+    });
+  },
 });
