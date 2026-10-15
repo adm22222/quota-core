@@ -1,6 +1,9 @@
 import type { RequestHandler } from 'express';
 import { createAccountService } from './accounts.service.ts';
-import type { CreateAccountInput } from './accounts.schema.ts';
+import type {
+  CreateAccountInput,
+  UpdateAccountPlanInput,
+} from './accounts.schema.ts';
 
 export type AccountService = ReturnType<typeof createAccountService>;
 
@@ -25,4 +28,21 @@ export const getCurrentAccountController: RequestHandler = (req, res) => {
   res.status(200).json({
     account: req.account,
   });
+};
+
+export const updateAccountPlanController = (
+  accountService: AccountService,
+): RequestHandler<{}, unknown, UpdateAccountPlanInput> => {
+  return async (req, res, next) => {
+    try {
+      const account = await accountService.updateAccountPlan(
+        req.account.id,
+        req.body.planId,
+      );
+
+      res.status(200).json({ account });
+    } catch (error) {
+      next(error);
+    }
+  };
 };

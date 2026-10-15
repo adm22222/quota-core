@@ -47,4 +47,47 @@ export const createAccountService = (db: PrismaClient) => ({
     const account = await apiKeyRepo.findAccountByKeyHash(hash);
     return account;
   },
+  // async getAccount(accountId: string) {
+  //   const repository = createAccountRepository(db);
+
+  //   const account = await repository.findAccountById(accountId);
+
+  //   if (!account) {
+  //     throw new AppError('AccountNotFound', 'Account not found', 404);
+  //   }
+
+  //   return account;
+  // },
+
+  async updateAccountPlan(accountId: string, planId: string) {
+    return db.$transaction(async (tx) => {
+      const repository = createAccountRepository(tx);
+
+      const plan = await repository.findPlanById(planId);
+
+      if (!plan) {
+        throw new AppError('PlanNotFound', 'Plan not found', 404);
+      }
+
+      if (plan.scope !== 'ACCOUNT') {
+        throw new AppError(
+          'PlanScopeMismatch',
+          'Plan scope must be ACCOUNT',
+          422,
+        );
+      }
+
+      const isPublicPredefinedPlan =
+        plan.isPredefined && plan.ownerAccountId === null;
+
+      const isOwnedCustomPlan =
+        !plan.isPredefined && plan.ownerAccountId === accountId;
+
+      if (!isPublicPredefinedPlan && !isOwnedCustomPlan) {
+        throw new AppError('PlanNotFound', 'Plan not found', 404);
+      }
+
+      return repository.updateAccountPlan(accountId, planId);
+    });
+  },
 });
