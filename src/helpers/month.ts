@@ -44,7 +44,9 @@ export const rejectFutureMonths = (
   now: Date = new Date(),
 ): void => {
   const { year, month } = parseMonth(value);
-
+  if (Number.isNaN(now.getTime())) {
+    throw new ValidationError('Invalid reference date');
+  }
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth() + 1;
 
