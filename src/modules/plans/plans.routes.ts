@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.ts';
-import { listPlansQuerySchema } from './plans.schema.ts';
-import { listPlansController, type PlanService } from './plans.controller.ts';
+import { listPlansQuerySchema, planIdParamSchema } from './plans.schema.ts';
+import {
+  getPlanController,
+  listPlansController,
+  type PlanService,
+} from './plans.controller.ts';
 import type { AuthService } from '../auth/auth.service.ts';
 import { createAuthenticateMiddleware } from '../../middleware/api-key-auth.middleware.ts';
 
@@ -22,6 +26,12 @@ export const createPlanRoutes = ({
     authenticate,
     validate(listPlansQuerySchema, 'query'),
     listPlansController(planService),
+  );
+  router.get(
+    '/:planId',
+    authenticate,
+    validate(planIdParamSchema, 'params'),
+    getPlanController(planService),
   );
 
   return router;

@@ -31,4 +31,20 @@ export const createPlanRepository = (db: PlanDb) => ({
       orderBy: [{ isPredefined: 'desc' }, { createdAt: 'asc' }],
     });
   },
+
+  findPlanByIdForAccount(planId: string, accountId: string) {
+    return db.plan.findFirst({
+      where: {
+        id: planId,
+        OR: [
+          { isPredefined: true, ownerAccountId: null },
+          { isPredefined: false, ownerAccountId: accountId },
+        ],
+      },
+      select: {
+        ...planSelect,
+        ownerAccountId: true,
+      },
+    });
+  },
 });
