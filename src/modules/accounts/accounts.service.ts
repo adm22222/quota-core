@@ -47,17 +47,6 @@ export const createAccountService = (db: PrismaClient) => ({
     const account = await apiKeyRepo.findAccountByKeyHash(hash);
     return account;
   },
-  // async getAccount(accountId: string) {
-  //   const repository = createAccountRepository(db);
-
-  //   const account = await repository.findAccountById(accountId);
-
-  //   if (!account) {
-  //     throw new AppError('AccountNotFound', 'Account not found', 404);
-  //   }
-
-  //   return account;
-  // },
 
   async updateAccountPlan(accountId: string, planId: string) {
     return db.$transaction(async (tx) => {
