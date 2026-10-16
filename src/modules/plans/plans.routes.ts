@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.ts';
-import { listPlansQuerySchema, planIdParamSchema } from './plans.schema.ts';
 import {
+  createPlanSchema,
+  listPlansQuerySchema,
+  planIdParamSchema,
+  updatePlanSchema,
+} from './plans.schema.ts';
+import {
+  createPlanController,
   getPlanController,
   listPlansController,
   type PlanService,
@@ -27,12 +33,19 @@ export const createPlanRoutes = ({
     validate(listPlansQuerySchema, 'query'),
     listPlansController(planService),
   );
+
+  router.post(
+    '/',
+    authenticate,
+    validate(createPlanSchema),
+    createPlanController(planService),
+  );
+
   router.get(
     '/:planId',
     authenticate,
     validate(planIdParamSchema, 'params'),
     getPlanController(planService),
   );
-
   return router;
 };

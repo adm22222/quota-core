@@ -1,6 +1,10 @@
 import type { RequestHandler } from 'express';
 import { createPlanService } from './plans.service.ts';
-import type { ListPlansQueryInput, PlanIdParamInput } from './plans.schema.ts';
+import type {
+  CreatePlanInput,
+  ListPlansQueryInput,
+  PlanIdParamInput,
+} from './plans.schema.ts';
 
 export type PlanService = ReturnType<typeof createPlanService>;
 
@@ -11,6 +15,19 @@ export const listPlansController = (
     try {
       const result = await planService.listPlans(req.account.id, req.query);
       res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+export const createPlanController = (
+  planService: PlanService,
+): RequestHandler<{}, unknown, CreatePlanInput> => {
+  return async (req, res, next) => {
+    try {
+      const plan = await planService.createPlan(req.account.id, req.body);
+      res.status(201).json(plan);
     } catch (error) {
       next(error);
     }

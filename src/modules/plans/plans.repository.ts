@@ -47,4 +47,41 @@ export const createPlanRepository = (db: PlanDb) => ({
       },
     });
   },
+
+  createPlan(data: {
+    name: string;
+    scope: PlanScope;
+    monthlyAllowance: number;
+    maxPerRequest: number;
+    ownerAccountId: string;
+  }) {
+    return db.plan.create({
+      data: {
+        name: data.name,
+        scope: data.scope,
+        monthlyAllowance: data.monthlyAllowance,
+        maxPerRequest: data.maxPerRequest,
+        ownerAccountId: data.ownerAccountId,
+        isPredefined: false,
+      },
+      select: planSelect,
+    });
+  },
+
+  checkNameConflict(
+    ownerAccountId: string,
+    scope: PlanScope,
+    name: string,
+    excludePlanId?: string,
+  ) {
+    return db.plan.findFirst({
+      where: {
+        ownerAccountId,
+        scope,
+        name,
+        ...(excludePlanId ? { NOT: { id: excludePlanId } } : {}),
+      },
+      select: { id: true },
+    });
+  },
 });
