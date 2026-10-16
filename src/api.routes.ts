@@ -3,12 +3,17 @@ import healthRoutes from './modules/health/health.routes.ts';
 
 interface ApiRoutesDependencies {
   accountRoutes: Router;
+  planRoutes: Router;
 }
 
-export const createApiRoutes = ({ accountRoutes }: ApiRoutesDependencies) => {
+export const createApiRoutes = ({
+  accountRoutes,
+  planRoutes,
+}: ApiRoutesDependencies) => {
   const router = Router();
   router.use('/health', healthRoutes);
   router.use('/accounts', accountRoutes);
+  router.use('/plans', planRoutes);
 
   return router;
 };
