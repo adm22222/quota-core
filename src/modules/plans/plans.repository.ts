@@ -68,6 +68,25 @@ export const createPlanRepository = (db: PlanDb) => ({
     });
   },
 
+  updatePlan(
+    planId: string,
+    data: {
+      name?: string;
+      monthlyAllowance: number;
+      maxPerRequest: number;
+    },
+  ) {
+    return db.plan.update({
+      where: { id: planId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        monthlyAllowance: data.monthlyAllowance,
+        maxPerRequest: data.maxPerRequest,
+      },
+      select: planSelect,
+    });
+  },
+
   checkNameConflict(
     ownerAccountId: string,
     scope: PlanScope,

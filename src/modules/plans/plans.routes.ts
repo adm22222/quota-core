@@ -10,6 +10,7 @@ import {
   createPlanController,
   getPlanController,
   listPlansController,
+  updatePlanController,
   type PlanService,
 } from './plans.controller.ts';
 import type { AuthService } from '../auth/auth.service.ts';
@@ -47,5 +48,14 @@ export const createPlanRoutes = ({
     validate(planIdParamSchema, 'params'),
     getPlanController(planService),
   );
+
+  router.put(
+    '/:planId',
+    authenticate,
+    validate(planIdParamSchema, 'params'),
+    validate(updatePlanSchema),
+    updatePlanController(planService),
+  );
+
   return router;
 };

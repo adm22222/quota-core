@@ -1,7 +1,15 @@
 import type { PrismaClient, PlanScope } from '../../generated/prisma/client.ts';
-import { AppError, ConflictError } from '../../shared/errors.ts';
+import {
+  AppError,
+  ConflictError,
+  ForbiddenError,
+} from '../../shared/errors.ts';
 import { createPlanRepository } from './plans.repository.ts';
-import type { CreatePlanInput, ListPlansQueryInput } from './plans.schema.ts';
+import type {
+  CreatePlanInput,
+  UpdatePlanInput,
+  ListPlansQueryInput,
+} from './plans.schema.ts';
 
 const toResponsePlan = <T extends { ownerAccountId?: string | null }>(
   plan: T,
@@ -55,5 +63,42 @@ export const createPlanService = (db: PrismaClient) => ({
     }
 
     return toResponsePlan(plan);
+  },
+
+  async updatePlan(accountId: string, planId: string, data: UpdatePlanInput) {
+    return db.$transaction(async (tx) => {
+      const repository = createPlanRepository(tx);
+
+      const plan = await repository.findPlanByIdForAccount(planId, accountId);
+
+      if (!plan) {
+        throw new AppError('PlanNotFound', 'Plan not found', 404);
+      }
+
+      if (plan.isPredefined) {
+        throw new ForbiddenError('Predefined plans are read-only');
+      }
+
+      if (data.name !== undefined && data.name !== plan.name) {
+        const conflict = await repository.checkNameConflict(
+          accountId,
+          plan.scope,
+          data.name,
+          planId,
+        );
+
+        if (conflict) {
+          throw new ConflictError(
+            `A plan named "${data.name}" already exists for scope ${plan.scope} in this account`,
+          );
+        }
+      }
+
+      return repository.updatePlan(planId, {
+        name: data.name,
+        monthlyAllowance: data.monthlyAllowance,
+        maxPerRequest: data.maxPerRequest,
+      });
+    });
   },
 });
