@@ -1,5 +1,4 @@
 import { createAccountService } from './modules/accounts/accounts.service.ts';
-import { createAccountRoutes } from './modules/accounts/accounts.routes.ts';
 import { createApiRoutes } from './api.routes.ts';
 import { prisma } from './shared/prisma.ts';
 import { createApiKeyRepository } from './modules/auth/api-key.repository.ts';
@@ -14,6 +13,8 @@ import { createUsageService } from './modules/usage/usage.service.ts';
 import { createUsageRoutes } from './modules/usage/usage.routes.ts';
 import { createHistoryService } from './modules/history/history.service.ts';
 import { createHistoryRoutes } from './modules/history/history.routes.ts';
+import { createAccountRoutes } from './modules/accounts/current-account.routes.ts';
+import { createAccountsRoutes } from './modules/accounts/accounts.routes.ts';
 
 const accountService = createAccountService(prisma);
 const apiKeyRepository = createApiKeyRepository(prisma);
@@ -24,7 +25,10 @@ const usageService = createUsageService(prisma);
 const historyService = createHistoryService(prisma);
 
 const authService = createAuthService(apiKeyRepository);
-const accountRoutes = createAccountRoutes({
+const accountRoutes = createAccountsRoutes({
+  accountService,
+});
+const currentAccountRoutes = createAccountRoutes({
   accountService,
   authService,
 });
@@ -35,6 +39,7 @@ const usageRoutes = createUsageRoutes(usageService, authService);
 const historyRoutes = createHistoryRoutes(historyService, authService);
 export const apiRoutes = createApiRoutes({
   accountRoutes,
+  currentAccountRoutes,
   planRoutes,
   userRoutes,
   consumeRoutes,
