@@ -2,7 +2,6 @@ import type { RequestHandler } from 'express';
 import { createUserService } from './users.service.ts';
 import {
   type CreateUserInput,
-  type ListUsersQueryInput,
   type UserRefParamInput,
   type UpdateUserPlanInput,
   listUsersQuerySchema,
