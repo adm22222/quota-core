@@ -12,6 +12,8 @@ export const createAccountRepository = (db: AccountDb) => ({
       select: {
         id: true,
         name: true,
+        accountPlan: true,
+        createdAt: true,
       },
     });
   },
@@ -52,7 +54,8 @@ export const createAccountRepository = (db: AccountDb) => ({
       select: {
         id: true,
         name: true,
-        accountPlanId: true,
+        accountPlan: true,
+        createdAt: true,
       },
     });
   },

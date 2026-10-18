@@ -5,7 +5,8 @@ export const createAccountSchema = z.object({
     .string()
     .trim()
     .min(1, 'Name is required')
-    .max(100, 'Name must not exceed 100 characters'),
+    .max(200, 'Name must not exceed 200 characters'),
+  planId: z.string().uuid('Plan ID must be a valid UUID').optional(),
 });
 
 export const updateAccountPlanSchema = z.object({

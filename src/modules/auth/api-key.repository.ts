@@ -38,6 +38,8 @@ export const createApiKeyRepository = (db: ApiKeyDb): ApiKeyRepository => ({
           select: {
             id: true,
             name: true,
+            accountPlan: true,
+            createdAt: true,
           },
         },
       },

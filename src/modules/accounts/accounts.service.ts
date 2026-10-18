@@ -1,5 +1,9 @@
 import type { PrismaClient } from '../../generated/prisma/client.ts';
-import { AppError } from '../../shared/errors.ts';
+import {
+  AppError,
+  NotFoundError,
+  UnprocessableEntityError,
+} from '../../shared/errors.ts';
 import { createApiKeyRepository } from '../auth/api-key.repository.ts';
 import {
   generateApiKey,
@@ -17,17 +21,30 @@ export const createAccountService = (db: PrismaClient) => ({
     const account = await db.$transaction(async (tx) => {
       const repository = createAccountRepository(tx);
       const apiKeyRepo = createApiKeyRepository(tx);
+
       const plan = await repository.findStarterPlan();
       if (!plan) {
-        throw new AppError(
-          'StarterPlanNotFound',
-          'Starter plan not found',
-          500,
+        throw new NotFoundError('Starter plan not found');
+      }
+      const planId = data.planId ?? plan.id;
+
+      const selectedPlan = await repository.findPlanById(planId);
+
+      if (!selectedPlan) {
+        throw new NotFoundError('Plan not found');
+      }
+      if (selectedPlan.scope !== 'ACCOUNT') {
+        throw new UnprocessableEntityError('Plan scope must be ACCOUNT');
+      }
+
+      if (!selectedPlan.isPredefined && selectedPlan.ownerAccountId !== null) {
+        throw new UnprocessableEntityError(
+          'Only predefined plans can be used for new accounts',
         );
       }
       const account = await repository.createAccount({
         name: data.name,
-        planId: plan.id,
+        planId: selectedPlan.id,
       });
       await apiKeyRepo.saveKey({
         accountId: account.id,
@@ -55,15 +72,11 @@ export const createAccountService = (db: PrismaClient) => ({
       const plan = await repository.findPlanById(planId);
 
       if (!plan) {
-        throw new AppError('PlanNotFound', 'Plan not found', 404);
+        throw new NotFoundError('Plan not found');
       }
 
       if (plan.scope !== 'ACCOUNT') {
-        throw new AppError(
-          'PlanScopeMismatch',
-          'Plan scope must be ACCOUNT',
-          422,
-        );
+        throw new UnprocessableEntityError('Plan scope must be ACCOUNT');
       }
 
       const isPublicPredefinedPlan =
@@ -73,7 +86,7 @@ export const createAccountService = (db: PrismaClient) => ({
         !plan.isPredefined && plan.ownerAccountId === accountId;
 
       if (!isPublicPredefinedPlan && !isOwnedCustomPlan) {
-        throw new AppError('PlanNotFound', 'Plan not found', 404);
+        throw new NotFoundError('Plan not found for this account');
       }
 
       return repository.updateAccountPlan(accountId, planId);
