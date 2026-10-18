@@ -12,6 +12,8 @@ import { createConsumeService } from './modules/consumption/consumption.service.
 import { createConsumeRoutes } from './modules/consumption/consume.routes.ts';
 import { createUsageService } from './modules/usage/usage.service.ts';
 import { createUsageRoutes } from './modules/usage/usage.routes.ts';
+import { createHistoryService } from './modules/history/history.service.ts';
+import { createHistoryRoutes } from './modules/history/history.routes.ts';
 
 const accountService = createAccountService(prisma);
 const apiKeyRepository = createApiKeyRepository(prisma);
@@ -19,6 +21,7 @@ const planService = createPlanService(prisma);
 const userService = createUserService(prisma);
 const consumeService = createConsumeService(prisma);
 const usageService = createUsageService(prisma);
+const historyService = createHistoryService(prisma);
 
 const authService = createAuthService(apiKeyRepository);
 const accountRoutes = createAccountRoutes({
@@ -29,10 +32,12 @@ const planRoutes = createPlanRoutes({ planService, authService });
 const userRoutes = createUserRoutes({ userService, authService });
 const consumeRoutes = createConsumeRoutes(consumeService, authService);
 const usageRoutes = createUsageRoutes(usageService, authService);
+const historyRoutes = createHistoryRoutes(historyService, authService);
 export const apiRoutes = createApiRoutes({
   accountRoutes,
   planRoutes,
   userRoutes,
   consumeRoutes,
   usageRoutes,
+  historyRoutes,
 });
