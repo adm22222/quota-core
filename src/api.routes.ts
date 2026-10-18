@@ -6,6 +6,7 @@ interface ApiRoutesDependencies {
   planRoutes: Router;
   userRoutes: Router;
   consumeRoutes: Router;
+  usageRoutes: Router;
 }
 
 export const createApiRoutes = ({
@@ -13,6 +14,7 @@ export const createApiRoutes = ({
   planRoutes,
   userRoutes,
   consumeRoutes,
+  usageRoutes,
 }: ApiRoutesDependencies) => {
   const router = Router();
   router.use('/health', healthRoutes);
@@ -20,5 +22,6 @@ export const createApiRoutes = ({
   router.use('/plans', planRoutes);
   router.use('/users', userRoutes);
   router.use('/consume', consumeRoutes);
+  router.use('/', usageRoutes);
   return router;
 };

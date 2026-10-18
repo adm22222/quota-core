@@ -3,7 +3,7 @@ import { formatMonth, getMonthStart } from '../../helpers/month.ts';
 import { ConflictError, NotFoundError } from '../../shared/errors.ts';
 import { createLimitRepository } from './limits.repository.ts';
 import { createRequestRepository } from './request.repository.ts';
-import { createUsageRepository } from './usage.repository.ts';
+import { createUsageRepository } from '../usage/usage.repository.ts';
 import { createFingerprint } from './fingerprint.ts';
 import type { CreateConsume } from './consume.schema.ts';
 import { RuleEvaluator } from '../rules/rule-evaluator.ts';
