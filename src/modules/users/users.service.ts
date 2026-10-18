@@ -1,4 +1,6 @@
 import type { PrismaClient } from '../../generated/prisma/client.ts';
+import { decodeCursor, encodeCursor } from '../../helpers/cursor.ts';
+import { z } from 'zod';
 import { AppError, ConflictError } from '../../shared/errors.ts';
 import { createUserRepository } from './users.repository.ts';
 import type {
@@ -25,6 +27,8 @@ const toUserResponse = (row: {
   plan: row.userPlan,
   createdAt: row.createdAt,
 });
+
+const userCursorSchema = z.string().min(1);
 
 export const createUserService = (db: PrismaClient) => ({
   async createUser(accountId: string, data: CreateUserInput) {
@@ -74,12 +78,12 @@ export const createUserService = (db: PrismaClient) => ({
     const repository = createUserRepository(db);
     const rows = await repository.listUsers(accountId, {
       limit: query.limit,
-      cursor: query.cursor,
+      cursor: decodeCursor(query.cursor, userCursorSchema),
     });
     const hasNextPage = rows.length > query.limit;
     const items = hasNextPage ? rows.slice(0, query.limit) : rows;
     const nextCursor = hasNextPage
-      ? (items[items.length - 1]?.externalUserId ?? null)
+      ? encodeCursor(items[items.length - 1]?.externalUserId)
       : null;
     return {
       items: items.map(toUserResponse),
