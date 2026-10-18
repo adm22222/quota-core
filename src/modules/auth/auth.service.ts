@@ -10,10 +10,10 @@ export const createAuthService = (apiKeyRepo: ApiKeyRepository) => ({
     if (!apiKey.startsWith('qtc_')) {
       throw new UnauthorizedError('Invalid API key');
     }
-    console.log('test api', apiKey);
+
     const keyHash = hashApiKey(apiKey);
     const account = await apiKeyRepo.findAccountByKeyHash(keyHash);
-    console.log('test account', account);
+
     if (!account) {
       throw new UnauthorizedError('Invalid API key');
     }
