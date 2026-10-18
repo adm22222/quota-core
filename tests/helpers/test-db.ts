@@ -24,3 +24,16 @@ export const resetDb = async () => {
 
   await seedPredefinedPlans(prisma);
 };
+
+export const getPredefinedPlan = async (
+  name: string,
+  scope: 'ACCOUNT' | 'USER',
+) => {
+  const plan = await prisma.plan.findFirst({
+    where: { name, scope, isPredefined: true },
+  });
+  if (!plan) {
+    throw new Error(`Plan not found: ${name} (${scope})`);
+  }
+  return plan;
+};
