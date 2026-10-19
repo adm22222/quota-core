@@ -7,20 +7,19 @@ import { createUsageRepository } from '../usage/usage.repository.ts';
 import { createFingerprint } from './fingerprint.ts';
 import type { CreateConsume } from './consume.schema.ts';
 import { RuleEvaluator } from '../rules/rule-evaluator.ts';
-import type { PlanLimits, RuleLevel, RuleType } from '../rules/rule.types.ts';
-
-type LevelStatus = PlanLimits & {
-  planId: string;
-  planName: string;
-  consumed: number;
-  remaining: number;
-};
-type ConsumeSnapshot = { account: LevelStatus; user: LevelStatus };
+import type { RuleViolation } from '../rules/rule.types.ts';
+import {
+  isConsumeSnapshot,
+  isRuleViolation,
+  type ConsumeSnapshot,
+  type ConsumeViolation,
+  type PlanWithLimits,
+} from './consumption.types.ts';
 
 const toStatus = (
-  plan: { id: string; name: string } & PlanLimits,
+  plan: PlanWithLimits,
   consumed: number,
-): LevelStatus => ({
+): ConsumeSnapshot['account'] => ({
   planId: plan.id,
   planName: plan.name,
   monthlyAllowance: plan.monthlyAllowance,
@@ -29,25 +28,51 @@ const toStatus = (
   remaining: Math.max(0, plan.monthlyAllowance - consumed),
 });
 
-const toViolation = (violation: {
-  level: RuleLevel;
-  rule: RuleType;
-  limit: number;
-  actual: number;
-}) => ({
+const toViolation = (violation: RuleViolation): ConsumeViolation => ({
   level: violation.level,
   rule: violation.rule,
   limit: violation.limit,
   attempted: violation.actual,
+  ...(violation.remaining !== undefined
+    ? { remaining: violation.remaining }
+    : {}),
 });
 
 const fromStored = (row: {
   limitsSnapshot?: unknown | null;
 }): ConsumeSnapshot => {
-  if (!row.limitsSnapshot || typeof row.limitsSnapshot !== 'object') {
+  if (!isConsumeSnapshot(row.limitsSnapshot)) {
     throw new Error('Stored consumption request has no limits snapshot');
   }
-  return row.limitsSnapshot as ConsumeSnapshot;
+  return row.limitsSnapshot;
+};
+
+const fromStoredViolations = (violations: unknown[] | null | undefined) => {
+  if (!violations) return [];
+  if (!violations.every(isRuleViolation)) {
+    throw new Error('Stored consumption request has invalid violations');
+  }
+  return violations;
+};
+
+const getStoredPrimaryViolation = (row: {
+  violations?: unknown[] | null;
+  rejectedRule: RuleViolation['rule'] | null | undefined;
+  rejectedLevel: RuleViolation['level'] | null | undefined;
+  units: number;
+}): RuleViolation | null => {
+  if (!row.rejectedRule || !row.rejectedLevel) return null;
+
+  const stored = fromStoredViolations(row.violations);
+  return (
+    stored[0] ?? {
+      level: row.rejectedLevel,
+      rule: row.rejectedRule,
+      limit: 0,
+      actual: row.units,
+      remaining: 0,
+    }
+  );
 };
 
 export const createConsumeService = (db: PrismaClient) => ({
@@ -89,38 +114,16 @@ export const createConsumeService = (db: PrismaClient) => ({
           );
         }
         const snapshot = fromStored(existing);
+        const storedViolations = fromStoredViolations(existing.violations);
+        const primaryViolation = getStoredPrimaryViolation(existing);
         return {
           requestId: input.requestId,
           userRef: input.userRef,
           units: existing.units,
           accepted: existing.outcome === 'ACCEPTED',
           replayed: true,
-          reason:
-            existing.rejectedRule && existing.rejectedLevel
-              ? toViolation(
-                  (existing.violations?.[0] ?? {
-                    level: existing.rejectedLevel,
-                    rule: existing.rejectedRule,
-                    limit: 0,
-                    actual: existing.units,
-                  }) as {
-                    level: RuleLevel;
-                    rule: RuleType;
-                    limit: number;
-                    actual: number;
-                  },
-                )
-              : null,
-          violations: (existing.violations ?? []).map((item) =>
-            toViolation(
-              item as {
-                level: RuleLevel;
-                rule: RuleType;
-                limit: number;
-                actual: number;
-              },
-            ),
-          ),
+          reason: primaryViolation ? toViolation(primaryViolation) : null,
+          violations: storedViolations.map(toViolation),
           month: formatMonth(existing.month),
           processedAt: existing.processedAt,
           ...snapshot,
@@ -158,8 +161,9 @@ export const createConsumeService = (db: PrismaClient) => ({
         user: toStatus(user.userPlan, userConsumed),
       };
       const violations = decision.violations.map(toViolation);
+      const outcome: Outcome = decision.allowed ? 'ACCEPTED' : 'REJECTED';
       const finalized = await requestRepository.finalize(claimed.id, {
-        outcome: (decision.allowed ? 'ACCEPTED' : 'REJECTED') as Outcome,
+        outcome,
         rejectedRule: decision.primary?.rule ?? null,
         rejectedLevel: decision.primary?.level ?? null,
         violations: decision.violations,
