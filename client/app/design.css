@@ -1,0 +1,590 @@
+:root {
+  --color-phosphor-green: #3ecf8e;
+  --color-mint-pulse: #00c573;
+  --color-forest-depth: #1f4b37;
+  --color-midnight-emerald: #006239;
+  --color-snow: #fafafa;
+  --color-silver-mist: #b4b4b4;
+  --color-smoke: #898989;
+  --color-graphite: #4d4d4d;
+  --color-slate: #393939;
+  --color-charcoal: #2e2e2e;
+  --color-ash: #242424;
+  --color-obsidian: #121212;
+  --font-circular: Circular, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-source-code-pro:
+    'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+html,
+body {
+  background: #121212 !important;
+  color: #fafafa !important;
+  font-family: var(--font-circular);
+  letter-spacing: -0.007em;
+}
+.app-shell,
+.main,
+.sidebar {
+  background: #121212 !important;
+  background-image: none !important;
+}
+.sidebar {
+  border-color: #2e2e2e !important;
+}
+.panel,
+.welcome-card,
+.help-card,
+.workspace,
+.guided-head,
+.welcome-banner {
+  background: #121212 !important;
+  background-image: none !important;
+  border: 1px solid #2e2e2e !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+.panel {
+  padding: 24px;
+}
+.brand-mark,
+.check.done,
+.story-step.complete .story-number {
+  background: #3ecf8e !important;
+  color: #121212 !important;
+}
+.brand,
+.main h2,
+.panel h3,
+.welcome-card h1,
+.guided-head h3,
+.story-copy strong {
+  color: #fafafa;
+  font-weight: 400;
+}
+.muted,
+.fine,
+.subtle,
+.story-copy small,
+.metric small,
+.level-row,
+.help-card p {
+  color: #898989 !important;
+}
+.eyebrow {
+  color: #3ecf8e !important;
+}
+nav button,
+.signout {
+  color: #b4b4b4;
+  border-radius: 9999px;
+}
+nav button:hover,
+nav button.selected {
+  color: #fafafa;
+  background: #242424;
+  box-shadow: none;
+}
+nav button.selected {
+  box-shadow: inset 2px 0 #3ecf8e;
+}
+.button,
+.text-button {
+  font-family: var(--font-circular);
+  letter-spacing: -0.007em;
+}
+.button {
+  border-radius: 9999px !important;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 16px;
+  box-shadow: none !important;
+}
+.button.primary {
+  background: #3ecf8e !important;
+  border: 1px solid #3ecf8e !important;
+  color: #fafafa !important;
+}
+.button.primary:hover {
+  background: #1f4b37 !important;
+  border-color: #1f4b37 !important;
+}
+.button.secondary,
+.text-button {
+  background: transparent !important;
+  border: 1px solid #393939 !important;
+  color: #fafafa !important;
+}
+.button.secondary:hover,
+.text-button:hover {
+  border-color: #4d4d4d !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+input,
+select {
+  background: #121212 !important;
+  border: 1px solid #393939 !important;
+  border-radius: 8px !important;
+  color: #fafafa !important;
+  font-size: 14px;
+}
+input::placeholder {
+  color: #898989;
+}
+input:focus,
+select:focus {
+  border-color: #3ecf8e !important;
+  box-shadow: none !important;
+}
+.segmented {
+  background: #242424;
+  border-radius: 9999px;
+}
+.segmented button {
+  border-radius: 9999px;
+  color: #b4b4b4;
+}
+.segmented button.active {
+  background: #3ecf8e;
+  color: #121212;
+}
+.badge,
+.status,
+.month-chip,
+.check-count {
+  border-radius: 9999px;
+  background: #242424;
+  border: 1px solid #2e2e2e;
+  color: #b4b4b4;
+}
+.status.accepted {
+  color: #3ecf8e;
+  background: #006239;
+}
+.status.rejected {
+  color: #b4b4b4;
+  background: #242424;
+}
+.error-box {
+  background: #242424;
+  border-color: #4d4d4d;
+  color: #fafafa;
+  border-radius: 8px;
+}
+.welcome {
+  background: #121212 !important;
+}
+.welcome-card .brand {
+  margin-bottom: 64px;
+}
+.welcome-aside {
+  color: #b4b4b4;
+}
+.welcome-aside strong,
+.live,
+.current-label,
+.arrow,
+.metric-icon {
+  color: #3ecf8e !important;
+}
+.metric strong,
+.plan-number,
+.outlook strong {
+  color: #fafafa;
+  font-weight: 400;
+}
+.table-row,
+.data-table,
+.story-footer,
+.request-accordion details {
+  border-color: #2e2e2e !important;
+}
+.table-header {
+  color: #898989;
+}
+.mono,
+code {
+  font-family: var(--font-source-code-pro);
+  letter-spacing: 0.1em;
+  color: #00c573;
+}
+.large-progress,
+.progress {
+  background: #242424;
+}
+.large-progress > div,
+.h-2 > div {
+  background: #3ecf8e !important;
+}
+.story-line {
+  background: #4d4d4d;
+}
+.story-number {
+  background: #121212;
+  border-color: #4d4d4d;
+  color: #b4b4b4;
+}
+.story-step.complete .story-number {
+  border-color: #3ecf8e;
+}
+.request-detail {
+  background: #242424;
+}
+.request-detail strong {
+  color: #fafafa;
+}
+.request-reason strong {
+  color: #3ecf8e;
+}
+.request-accordion summary:after {
+  color: #3ecf8e;
+}
+
+/* Workbench refinement: compact, intentional developer-tool hierarchy */
+body {
+  font-size: 14px;
+}
+.app-shell {
+  background: #101111 !important;
+}
+.sidebar {
+  width: 224px;
+  padding: 20px 12px 16px;
+  background: #141515 !important;
+}
+.sidebar .brand {
+  padding: 0 10px;
+  font-size: 15px;
+}
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px !important;
+  font-size: 13px;
+}
+.workspace {
+  margin: 32px 0 18px;
+  border-radius: 8px !important;
+  padding: 10px;
+  background: #191a1a !important;
+}
+nav {
+  gap: 2px;
+}
+nav button,
+.signout {
+  border-radius: 6px !important;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+nav button.selected {
+  box-shadow: inset 2px 0 #3ecf8e;
+}
+.main {
+  max-width: 1240px;
+  padding: 30px 40px 56px;
+}
+.main header {
+  margin-bottom: 28px;
+  border-bottom: 1px solid #2e2e2e;
+  padding-bottom: 22px;
+}
+.main h2 {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.breadcrumb {
+  font-family: var(--font-source-code-pro);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: #898989;
+}
+.panel {
+  border-radius: 10px !important;
+  padding: 20px;
+}
+.stats-grid {
+  gap: 8px;
+  margin: 14px 0;
+}
+.metric {
+  min-height: 126px;
+}
+.metric strong {
+  font-size: 23px;
+  margin-top: 17px;
+}
+.content-grid,
+.demo-grid {
+  gap: 8px;
+}
+.welcome-banner,
+.guided-head {
+  border-radius: 10px !important;
+  padding: 20px 22px;
+}
+.welcome-banner h3,
+.guided-head h3 {
+  font-size: 20px;
+}
+.button {
+  border-radius: 6px !important;
+  padding: 9px 13px;
+}
+.button.primary,
+.button.secondary {
+  text-transform: none;
+}
+.button.secondary,
+.text-button {
+  border-radius: 6px !important;
+}
+.input,
+input,
+select {
+  border-radius: 6px !important;
+}
+.badge,
+.status,
+.month-chip,
+.check-count {
+  border-radius: 4px;
+}
+.data-table {
+  margin-left: -20px;
+  margin-right: -20px;
+}
+.table-row {
+  padding: 12px 20px;
+}
+.table-header {
+  font-family: var(--font-source-code-pro);
+  letter-spacing: 0.08em;
+}
+.story-card {
+  padding: 22px 26px;
+}
+.story-step {
+  min-height: 62px;
+}
+.story-copy strong {
+  font-size: 14px;
+}
+.story-number {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  font-family: var(--font-source-code-pro);
+}
+.request-accordion details {
+  padding: 15px 0;
+}
+.request-detail {
+  border-radius: 6px;
+}
+.request-detail strong,
+.request-detail .mono {
+  font-size: 12px;
+}
+.empty {
+  border-style: solid;
+  border-color: #2e2e2e;
+  border-radius: 8px;
+  padding: 24px;
+}
+.create-inline,
+.create-plan {
+  border-radius: 10px !important;
+}
+.plan-card h3 {
+  font-size: 18px;
+}
+.plan-number {
+  font-family: var(--font-source-code-pro);
+  font-size: 24px;
+}
+.welcome {
+  background: #101111 !important;
+}
+.welcome-card {
+  border-radius: 10px !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18) !important;
+}
+@media (max-width: 900px) {
+  .sidebar {
+    width: 64px;
+  }
+  .main {
+    padding: 24px 24px 44px;
+  }
+}
+
+/* Component polish — exact DESIGN.md geometry and surface rules */
+.app-shell,
+body {
+  background: #121212 !important;
+}
+.main {
+  max-width: 1200px;
+}
+.panel,
+.welcome-card,
+.help-card,
+.workspace,
+.guided-head,
+.welcome-banner {
+  background: #121212 !important;
+  border: 1px solid #2e2e2e !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+.panel {
+  padding: 24px;
+}
+.button,
+.button.primary,
+.button.secondary,
+.text-button {
+  border-radius: 9999px !important;
+  font-size: 14px;
+  line-height: 1.43;
+  padding: 8px 16px;
+}
+.button.primary {
+  background: #3ecf8e !important;
+  color: #fafafa !important;
+  border-color: #3ecf8e !important;
+}
+.button.primary:hover {
+  background: #1f4b37 !important;
+  border-color: #1f4b37 !important;
+}
+.button.secondary,
+.text-button {
+  background: transparent !important;
+  color: #fafafa !important;
+  border-color: #393939 !important;
+}
+.button.secondary:hover,
+.text-button:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: #4d4d4d !important;
+}
+input,
+select {
+  background: #121212 !important;
+  border: 1px solid #393939 !important;
+  border-radius: 8px !important;
+  padding: 8px 12px;
+  color: #fafafa !important;
+}
+input:focus,
+select:focus {
+  border-color: #3ecf8e !important;
+  outline: none;
+  box-shadow: none !important;
+}
+.stats-grid {
+  gap: 16px;
+}
+.content-grid,
+.demo-grid {
+  gap: 16px;
+}
+.metric {
+  min-height: 140px;
+}
+.metric strong {
+  font-size: 24px;
+}
+.card-head {
+  margin-bottom: 24px;
+}
+.card-head h3,
+.panel h3 {
+  color: #fafafa;
+  font-size: 18px;
+  line-height: 1.38;
+  font-weight: 500;
+}
+.welcome-banner,
+.guided-head {
+  padding: 24px;
+}
+.welcome-banner h3,
+.guided-head h3 {
+  font-size: 24px;
+  line-height: 1.33;
+  font-weight: 400;
+}
+.badge,
+.status,
+.month-chip,
+.check-count {
+  border-radius: 9999px !important;
+  background: #242424;
+  border: 1px solid #2e2e2e;
+}
+.table-row {
+  border-color: #2e2e2e !important;
+}
+.table-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.empty {
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  background: #121212;
+}
+.request-detail,
+.demo-hint,
+.help-card,
+.workspace {
+  background: #242424 !important;
+}
+.story-card,
+.request-accordion,
+.try-card {
+  border-radius: 16px !important;
+}
+.story-number {
+  border-radius: 9999px;
+}
+.story-step.complete .story-number {
+  background: #3ecf8e !important;
+}
+.status.accepted {
+  color: #3ecf8e;
+  background: #006239;
+}
+.status.rejected {
+  color: #b4b4b4;
+  background: #242424;
+}
+.error-box {
+  background: #242424;
+  border: 1px solid #4d4d4d;
+  color: #fafafa;
+  border-radius: 8px;
+}
+.mono,
+code {
+  color: #00c573;
+  font-family: var(--font-source-code-pro);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+/* The interface uses text and status labels instead of decorative icons. */
+.brand-mark,
+.nav-icon,
+.metric-icon,
+.status-dot,
+.pulse,
+.spinner,
+.header-actions > .live i,
+.icon-button,
+.decision-icon,
+.story-number,
+.check,
+.arrow {
+  display: none !important;
+}
