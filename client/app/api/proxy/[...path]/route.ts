@@ -1,7 +1,11 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-const API_URL = process.env.QUOTA_API_URL ?? 'http://localhost:3000/api/v1';
+const API_URL = process.env.QUOTA_API_URL;
+
+if (!API_URL) {
+  throw new Error('QUOTA_API_URL is not configured');
+}
 const COOKIE_NAME = 'quotacore_api_key';
 
 async function forward(request: Request, path: string[]) {
