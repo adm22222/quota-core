@@ -81,7 +81,7 @@ export const createUserRepository = (db: UserDb) => ({
     return db.user.findMany({
       where: { accountId },
       select: userSelect,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { externalUserId: 'asc' },
       take: opts.limit + 1,
       ...(opts.cursor
         ? {

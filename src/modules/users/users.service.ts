@@ -1,39 +1,34 @@
-import type { PrismaClient } from '../../generated/prisma/client.ts';
 import { decodeCursor, encodeCursor } from '../../helpers/cursor.ts';
 import { z } from 'zod';
 import { AppError, ConflictError } from '../../shared/errors.ts';
 import { createUserRepository } from './users.repository.ts';
 import type {
-  CreateUserInput,
-  ListUsersQueryInput,
-  UpdateUserPlanInput,
+  RepositoryFactory,
+  TransactionManager,
+} from '../../shared/transaction-manager.ts';
+import {
+  userCursorSchema,
+  type CreateUserInput,
+  type ListUsersQueryInput,
+  type UpdateUserPlanInput,
 } from './users.schema.ts';
+import type { UserRow } from './users.types.ts';
 
-const toUserResponse = (row: {
-  externalUserId: string;
-  createdAt: Date;
-  userPlan: {
-    id: string;
-    name: string;
-    scope: string;
-    isPredefined: boolean;
-    monthlyAllowance: number;
-    maxPerRequest: number;
-    createdAt: Date;
-    updatedAt: Date;
-  };
-}) => ({
+const toUserResponse = (row: UserRow) => ({
   userRef: row.externalUserId,
   plan: row.userPlan,
   createdAt: row.createdAt,
 });
 
-const userCursorSchema = z.string().min(1);
+type UserRepository = ReturnType<typeof createUserRepository>;
 
-export const createUserService = (db: PrismaClient) => ({
+export const createUserService = (deps: {
+  userRepositoryFactory: RepositoryFactory<UserRepository>;
+  transactionManager: TransactionManager;
+}) => ({
   async createUser(accountId: string, data: CreateUserInput) {
-    return db.$transaction(async (tx) => {
-      const repository = createUserRepository(tx);
+    return deps.transactionManager.run(async (tx) => {
+      const repository = deps.userRepositoryFactory(tx);
 
       let planId: string;
       if (data.planId) {
@@ -75,7 +70,7 @@ export const createUserService = (db: PrismaClient) => ({
     });
   },
   async listUsers(accountId: string, query: ListUsersQueryInput) {
-    const repository = createUserRepository(db);
+    const repository = deps.userRepositoryFactory();
     const rows = await repository.listUsers(accountId, {
       limit: query.limit,
       cursor: decodeCursor(query.cursor, userCursorSchema),
@@ -91,7 +86,7 @@ export const createUserService = (db: PrismaClient) => ({
     };
   },
   async getUserByRef(accountId: string, userRef: string) {
-    const repository = createUserRepository(db);
+    const repository = deps.userRepositoryFactory();
     const user = await repository.findUserByRef(accountId, userRef);
     if (!user) {
       throw new AppError('UserNotFound', 'User not found', 404);
@@ -103,8 +98,8 @@ export const createUserService = (db: PrismaClient) => ({
     userRef: string,
     data: UpdateUserPlanInput,
   ) {
-    return db.$transaction(async (tx) => {
-      const repository = createUserRepository(tx);
+    return deps.transactionManager.run(async (tx) => {
+      const repository = deps.userRepositoryFactory(tx);
       const user = await repository.findUserByRef(accountId, userRef);
       if (!user) {
         throw new AppError('UserNotFound', 'User not found', 404);

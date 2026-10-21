@@ -1,26 +1,33 @@
-import type { PrismaClient } from '../../generated/prisma/client.ts';
 import {
-  AppError,
   NotFoundError,
   UnprocessableEntityError,
 } from '../../shared/errors.ts';
-import { createApiKeyRepository } from '../auth/api-key.repository.ts';
 import {
   generateApiKey,
   getApiKeyPrefix,
   hashApiKey,
 } from '../auth/api-key.ts';
-import { createAccountRepository } from './account.repository.ts';
+import type {
+  TransactionManager,
+} from '../../shared/transaction-manager.ts';
 import type { CreateAccountInput } from './accounts.schema.ts';
+import type {
+  AccountRepositoryFactory,
+  ApiKeyRepositoryFactory,
+} from './accounts.types.ts';
 
-export const createAccountService = (db: PrismaClient) => ({
+export const createAccountService = (deps: {
+  accountRepositoryFactory: AccountRepositoryFactory;
+  apiKeyRepositoryFactory: ApiKeyRepositoryFactory;
+  transactionManager: TransactionManager;
+}) => ({
   async createAccount(data: CreateAccountInput) {
     const apiKey = generateApiKey();
     const hash = hashApiKey(apiKey);
     const prefixApiKey = getApiKeyPrefix(apiKey);
-    const account = await db.$transaction(async (tx) => {
-      const repository = createAccountRepository(tx);
-      const apiKeyRepo = createApiKeyRepository(tx);
+    const account = await deps.transactionManager.run(async (tx) => {
+      const repository = deps.accountRepositoryFactory(tx);
+      const apiKeyRepo = deps.apiKeyRepositoryFactory(tx);
 
       const plan = await repository.findStarterPlan();
       if (!plan) {
@@ -59,15 +66,15 @@ export const createAccountService = (db: PrismaClient) => ({
     };
   },
   async getAccountByApiKey(apikey: string) {
-    const apiKeyRepo = createApiKeyRepository(db);
+    const apiKeyRepo = deps.apiKeyRepositoryFactory();
     const hash = hashApiKey(apikey);
     const account = await apiKeyRepo.findAccountByKeyHash(hash);
     return account;
   },
 
   async updateAccountPlan(accountId: string, planId: string) {
-    return db.$transaction(async (tx) => {
-      const repository = createAccountRepository(tx);
+    return deps.transactionManager.run(async (tx) => {
+      const repository = deps.accountRepositoryFactory(tx);
 
       const plan = await repository.findPlanById(planId);
 

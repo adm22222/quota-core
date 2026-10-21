@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'express';
 import type { UsageService } from './usage.service.ts';
 import { usageQuerySchema, userUsageQuerySchema } from './usage.schema.ts';
+import type { UserUsageParams } from './usage.types.ts';
 
 export const createUsageController =
   (service: UsageService): RequestHandler =>
@@ -20,7 +21,7 @@ export const createUsageController =
   };
 
 export const createUserUsageController =
-  (service: UsageService): RequestHandler =>
+  (service: UsageService): RequestHandler<UserUsageParams> =>
   async (req, res, next) => {
     try {
       res
@@ -28,7 +29,7 @@ export const createUserUsageController =
         .json(
           await service.getUserUsage(
             req.account.id,
-            req.params.userRef as string,
+            req.params.userRef,
             userUsageQuerySchema.parse(req.query),
           ),
         );

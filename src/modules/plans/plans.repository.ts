@@ -1,8 +1,8 @@
 import type {
   Prisma,
   PrismaClient,
-  PlanScope,
 } from '../../generated/prisma/client.ts';
+import type { PlanScope } from '../../shared/types.ts';
 
 type PlanDb = PrismaClient | Prisma.TransactionClient;
 

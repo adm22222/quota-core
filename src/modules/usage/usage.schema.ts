@@ -13,6 +13,7 @@ export const usageQuerySchema = z.object({
   cursor: cursorSchema,
 });
 
+export const userCursorSchema = z.string().min(1);
 export const userUsageQuerySchema = z.object({ month: monthSchema });
 
 export type UsageQuery = z.infer<typeof usageQuerySchema>;

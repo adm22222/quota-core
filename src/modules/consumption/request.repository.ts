@@ -4,6 +4,7 @@ import type {
   RuleLevel,
   RuleType,
 } from '../../generated/prisma/client.ts';
+import type { ConsumeSnapshot, RuleViolation } from '../../shared/types.ts';
 
 export interface ClaimedRequest {
   id: string;
@@ -17,24 +18,24 @@ export interface ClaimedRequest {
   outcome?: Outcome | null;
   rejectedRule?: RuleType | null;
   rejectedLevel?: RuleLevel | null;
-  violations?: unknown[];
-  limitsSnapshot?: unknown | null;
+  violations?: RuleViolation[];
+  limitsSnapshot?: ConsumeSnapshot | null;
 }
 
 export interface FinalizeData {
   outcome: Outcome;
   rejectedRule: RuleType | null;
   rejectedLevel: RuleLevel | null;
-  violations: unknown[];
-  limitsSnapshot: unknown | null;
+  violations: RuleViolation[];
+  limitsSnapshot: ConsumeSnapshot | null;
 }
 
 export interface FinalizedRequest extends ClaimedRequest {
   outcome: Outcome;
   rejectedRule: RuleType | null;
   rejectedLevel: RuleLevel | null;
-  violations: unknown[];
-  limitsSnapshot: unknown | null;
+  violations: RuleViolation[];
+  limitsSnapshot: ConsumeSnapshot | null;
 }
 
 export const createRequestRepository = (
