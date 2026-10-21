@@ -588,3 +588,157 @@ code {
 .arrow {
   display: none !important;
 }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.pagination > span {
+  min-width: 72px;
+  color: var(--muted, #8b8b8b);
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Guided demo: a calm, documentation-like walkthrough rather than a generic card stack. */
+.guided-demo {
+  gap: 20px;
+}
+
+.guided-head {
+  align-items: flex-end;
+  padding: 28px 30px;
+  border: 1px solid #2e2e2e !important;
+  border-radius: 16px !important;
+  background: #181818 !important;
+}
+
+.guided-head h3 {
+  margin: 8px 0 6px;
+  color: #fafafa;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+
+.guided-head p {
+  max-width: 560px;
+  color: #a1a1a1;
+  line-height: 1.6;
+}
+
+.guided-actions .button {
+  min-width: 92px;
+}
+
+.story-card {
+  padding: 26px 30px !important;
+  border: 1px solid #2e2e2e !important;
+  background: #181818 !important;
+}
+
+.story-line {
+  left: 47px;
+  top: 54px;
+  bottom: 54px;
+  background: #303030 !important;
+}
+
+.story-step {
+  min-height: 74px;
+  border-bottom: 1px solid #242424;
+}
+
+.story-step:last-of-type {
+  border-bottom: 0;
+}
+
+.story-number {
+  display: grid !important;
+  width: 34px;
+  height: 34px;
+  border-color: #3a3a3a !important;
+  color: #a1a1a1 !important;
+  background: #181818 !important;
+  font-size: 11px;
+}
+
+.story-step.complete .story-number {
+  border-color: #3ecf8e !important;
+  color: #3ecf8e !important;
+  background: #123326 !important;
+  font-size: 0;
+}
+
+.story-step.complete .story-number::after {
+  content: 'Done';
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.story-copy {
+  min-width: 0;
+}
+
+.story-copy strong {
+  color: #f0f0f0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.story-copy small {
+  line-height: 1.5;
+}
+
+.story-footer {
+  margin-left: 0;
+  color: #8b8b8b;
+}
+
+.request-accordion {
+  padding: 24px 30px !important;
+  border: 1px solid #2e2e2e !important;
+  background: #181818 !important;
+}
+
+.request-accordion summary {
+  padding: 6px 0;
+  color: #e5e5e5;
+  font-size: 13px;
+}
+
+.request-accordion summary:after {
+  color: #8b8b8b !important;
+}
+
+.request-detail {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 12px 0 4px;
+  padding: 16px;
+  border: 1px solid #2e2e2e;
+  background: #121212 !important;
+}
+
+@media (max-width: 700px) {
+  .guided-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .story-card,
+  .request-accordion {
+    padding: 20px 16px !important;
+  }
+
+  .story-line {
+    left: 33px;
+  }
+
+  .request-detail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
