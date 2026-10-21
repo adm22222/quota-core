@@ -15,14 +15,54 @@ import { createHistoryService } from './modules/history/history.service.ts';
 import { createHistoryRoutes } from './modules/history/history.routes.ts';
 import { createAccountRoutes } from './modules/accounts/current-account.routes.ts';
 import { createAccountsRoutes } from './modules/accounts/accounts.routes.ts';
+import { createTransactionManager } from './shared/transaction-manager.ts';
+import { createAccountRepository } from './modules/accounts/account.repository.ts';
+import { createPlanRepository } from './modules/plans/plans.repository.ts';
+import { createUserRepository } from './modules/users/users.repository.ts';
+import { createLimitRepository } from './modules/consumption/limits.repository.ts';
+import { createRequestRepository } from './modules/consumption/request.repository.ts';
+import { createUsageRepository } from './modules/usage/usage.repository.ts';
+import { createHistoryRepository } from './modules/history/history.repository.ts';
+import { createRepositoryFactory } from './shared/repository-factory.ts';
 
-const accountService = createAccountService(prisma);
-const apiKeyRepository = createApiKeyRepository(prisma);
-const planService = createPlanService(prisma);
-const userService = createUserService(prisma);
-const consumeService = createConsumeService(prisma);
-const usageService = createUsageService(prisma);
-const historyService = createHistoryService(prisma);
+const transactionManager = createTransactionManager(prisma);
+const accountRepositoryFactory = createRepositoryFactory(
+  createAccountRepository,
+);
+const apiKeyRepositoryFactory = createRepositoryFactory(createApiKeyRepository);
+const planRepositoryFactory = createRepositoryFactory(createPlanRepository);
+const userRepositoryFactory = createRepositoryFactory(createUserRepository);
+const limitRepositoryFactory = createRepositoryFactory(createLimitRepository);
+const requestRepositoryFactory = createRepositoryFactory(
+  createRequestRepository,
+);
+const usageRepositoryFactory = createRepositoryFactory(createUsageRepository);
+const historyRepositoryFactory = createRepositoryFactory(
+  createHistoryRepository,
+);
+
+const accountService = createAccountService({
+  accountRepositoryFactory,
+  apiKeyRepositoryFactory,
+  transactionManager,
+});
+const apiKeyRepository = apiKeyRepositoryFactory();
+const planService = createPlanService({
+  planRepositoryFactory,
+  transactionManager,
+});
+const userService = createUserService({
+  userRepositoryFactory,
+  transactionManager,
+});
+const consumeService = createConsumeService({
+  limitRepositoryFactory,
+  requestRepositoryFactory,
+  usageRepositoryFactory,
+  transactionManager,
+});
+const usageService = createUsageService({ usageRepositoryFactory });
+const historyService = createHistoryService({ historyRepositoryFactory });
 
 const authService = createAuthService(apiKeyRepository);
 const accountRoutes = createAccountsRoutes({
