@@ -1,11 +1,11 @@
-export type RuleLevel = 'ACCOUNT' | 'USER';
+import type {
+  PlanLimits,
+  RuleLevel,
+  RuleType,
+  RuleViolation,
+} from '../../shared/types.ts';
 
-export type RuleType = 'MAX_PER_REQUEST' | 'MONTHLY_ALLOWANCE';
-
-export interface PlanLimits {
-  monthlyAllowance: number;
-  maxPerRequest: number;
-}
+export type { PlanLimits, RuleLevel, RuleType } from '../../shared/types.ts';
 
 export interface RuleContext {
   level: RuleLevel;
@@ -14,13 +14,7 @@ export interface RuleContext {
   requested: number;
 }
 
-export interface RuleViolation {
-  level: RuleLevel;
-  rule: RuleType;
-  limit: number;
-  actual: number;
-  remaining?: number;
-}
+export type { RuleViolation } from '../../shared/types.ts';
 
 export interface Decision {
   allowed: boolean;

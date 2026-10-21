@@ -1,4 +1,3 @@
-import type { PrismaClient } from '../../generated/prisma/client.ts';
 import {
   formatMonth,
   getMonthStart,
@@ -6,12 +5,16 @@ import {
 } from '../../helpers/month.ts';
 import { NotFoundError } from '../../shared/errors.ts';
 import { decodeCursor, encodeCursor } from '../../helpers/cursor.ts';
-import { z } from 'zod';
 import { createUsageRepository } from './usage.repository.ts';
-import type { UsageQuery, UserUsageQuery } from './usage.schema.ts';
-import type { PlanLimits } from '../rules/rule.types.ts';
+import {
+  userCursorSchema,
+  type UsageQuery,
+  type UserUsageQuery,
+} from './usage.schema.ts';
+import type { RepositoryFactory } from '../../shared/transaction-manager.ts';
+import type { PlanWithLimits } from '../../shared/types.ts';
 
-type Plan = { id: string; name: string } & PlanLimits;
+type UsageRepository = ReturnType<typeof createUsageRepository>;
 
 const monthDate = (month?: string) => {
   const value = month ?? formatMonth(new Date());
@@ -19,7 +22,7 @@ const monthDate = (month?: string) => {
   return getMonthStart(value);
 };
 
-const status = (plan: Plan, consumed: number) => ({
+const status = (plan: PlanWithLimits, consumed: number) => ({
   planId: plan.id,
   planName: plan.name,
   monthlyAllowance: plan.monthlyAllowance,
@@ -28,14 +31,13 @@ const status = (plan: Plan, consumed: number) => ({
   remaining: Math.max(0, plan.monthlyAllowance - consumed),
 });
 
-const userCursorSchema = z.string().min(1);
-
-export const createUsageService = (db: PrismaClient) => {
-  const usageRepository = createUsageRepository(db);
-
+export const createUsageService = (deps: {
+  usageRepositoryFactory: RepositoryFactory<UsageRepository>;
+}) => {
   return {
     async getUsage(accountId: string, query: UsageQuery) {
       const month = monthDate(query.month);
+      const usageRepository = deps.usageRepositoryFactory();
       const account = await usageRepository.getAccountUsage(accountId, month);
       if (!account) throw new NotFoundError('Account not found');
       const rows = await usageRepository.listUsersUsage(accountId, month, {
@@ -63,6 +65,7 @@ export const createUsageService = (db: PrismaClient) => {
       query: UserUsageQuery,
     ) {
       const month = monthDate(query.month);
+      const usageRepository = deps.usageRepositoryFactory();
       const row = await usageRepository.getUserUsage(accountId, userRef, month);
       if (!row) throw new NotFoundError('User not found');
       return {

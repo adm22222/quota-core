@@ -10,5 +10,13 @@ export const historyQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.string().min(1).optional(),
 });
+export const historyCursorSchema = z.object({
+  processedAt: z.string().transform((value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new Error('invalid cursor');
+    return date;
+  }),
+  id: z.string().uuid(),
+});
 
 export type HistoryQuery = z.infer<typeof historyQuerySchema>;

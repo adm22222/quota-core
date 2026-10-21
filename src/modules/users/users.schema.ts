@@ -13,12 +13,7 @@ export const createUserSchema = z.object({
 });
 
 export const listUsersQuerySchema = z.object({
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(200)
-    .default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.string().optional(),
 });
 
@@ -32,6 +27,8 @@ export const userRefParamSchema = z.object({
 export const updateUserPlanSchema = z.object({
   planId: z.string().uuid('planId must be a valid UUID'),
 });
+
+export const userCursorSchema = z.string().min(1);
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type ListUsersQueryInput = z.infer<typeof listUsersQuerySchema>;

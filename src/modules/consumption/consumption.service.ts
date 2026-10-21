@@ -1,4 +1,4 @@
-import type { PrismaClient, Outcome } from '../../generated/prisma/client.ts';
+import type { Outcome } from '../../generated/prisma/client.ts';
 import { formatMonth, getMonthStart } from '../../helpers/month.ts';
 import { ConflictError, NotFoundError } from '../../shared/errors.ts';
 import { createLimitRepository } from './limits.repository.ts';
@@ -15,6 +15,10 @@ import {
   type ConsumeViolation,
   type PlanWithLimits,
 } from './consumption.types.ts';
+import type {
+  RepositoryFactory,
+  TransactionManager,
+} from '../../shared/transaction-manager.ts';
 
 const toStatus = (
   plan: PlanWithLimits,
@@ -39,7 +43,7 @@ const toViolation = (violation: RuleViolation): ConsumeViolation => ({
 });
 
 const fromStored = (row: {
-  limitsSnapshot?: unknown | null;
+  limitsSnapshot?: ConsumeSnapshot | null;
 }): ConsumeSnapshot => {
   if (!isConsumeSnapshot(row.limitsSnapshot)) {
     throw new Error('Stored consumption request has no limits snapshot');
@@ -47,7 +51,9 @@ const fromStored = (row: {
   return row.limitsSnapshot;
 };
 
-const fromStoredViolations = (violations: unknown[] | null | undefined) => {
+const fromStoredViolations = (
+  violations: RuleViolation[] | null | undefined,
+) => {
   if (!violations) return [];
   if (!violations.every(isRuleViolation)) {
     throw new Error('Stored consumption request has invalid violations');
@@ -56,7 +62,7 @@ const fromStoredViolations = (violations: unknown[] | null | undefined) => {
 };
 
 const getStoredPrimaryViolation = (row: {
-  violations?: unknown[] | null;
+  violations?: RuleViolation[] | null;
   rejectedRule: RuleViolation['rule'] | null | undefined;
   rejectedLevel: RuleViolation['level'] | null | undefined;
   units: number;
@@ -75,13 +81,22 @@ const getStoredPrimaryViolation = (row: {
   );
 };
 
-export const createConsumeService = (db: PrismaClient) => ({
+export type LimitRepository = ReturnType<typeof createLimitRepository>;
+export type RequestRepository = ReturnType<typeof createRequestRepository>;
+export type UsageRepository = ReturnType<typeof createUsageRepository>;
+
+export const createConsumeService = (deps: {
+  limitRepositoryFactory: RepositoryFactory<LimitRepository>;
+  requestRepositoryFactory: RepositoryFactory<RequestRepository>;
+  usageRepositoryFactory: RepositoryFactory<UsageRepository>;
+  transactionManager: TransactionManager;
+}) => ({
   async consume(accountId: string, input: CreateConsume) {
-    return db.$transaction(async (tx) => {
+    return deps.transactionManager.run(async (tx) => {
       const month = getMonthStart(new Date().toISOString().slice(0, 7));
-      const limitsRepository = createLimitRepository(tx);
-      const requestRepository = createRequestRepository(tx);
-      const usageRepository = createUsageRepository(tx);
+      const limitsRepository = deps.limitRepositoryFactory(tx);
+      const requestRepository = deps.requestRepositoryFactory(tx);
+      const usageRepository = deps.usageRepositoryFactory(tx);
       const user = await limitsRepository.findUser(accountId, input.userRef);
 
       if (!user) throw new NotFoundError('User not found');

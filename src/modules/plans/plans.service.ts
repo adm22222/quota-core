@@ -1,4 +1,3 @@
-import type { PrismaClient, PlanScope } from '../../generated/prisma/client.ts';
 import {
   AppError,
   ConflictError,
@@ -10,6 +9,10 @@ import type {
   UpdatePlanInput,
   ListPlansQueryInput,
 } from './plans.schema.ts';
+import type {
+  RepositoryFactory,
+  TransactionManager,
+} from '../../shared/transaction-manager.ts';
 
 const toResponsePlan = <T extends { ownerAccountId?: string | null }>(
   plan: T,
@@ -18,23 +21,28 @@ const toResponsePlan = <T extends { ownerAccountId?: string | null }>(
   return rest;
 };
 
-export const createPlanService = (db: PrismaClient) => ({
+type PlanRepository = ReturnType<typeof createPlanRepository>;
+
+export const createPlanService = (deps: {
+  planRepositoryFactory: RepositoryFactory<PlanRepository>;
+  transactionManager: TransactionManager;
+}) => ({
   async listPlans(accountId: string, query: ListPlansQueryInput) {
-    const repository = createPlanRepository(db);
+    const repository = deps.planRepositoryFactory();
     const items = await repository.findPlansByAccount(
       accountId,
-      query.scope as PlanScope | undefined,
+      query.scope,
     );
     return { items };
   },
 
   async createPlan(accountId: string, data: CreatePlanInput) {
-    return db.$transaction(async (tx) => {
-      const repository = createPlanRepository(tx);
+    return deps.transactionManager.run(async (tx) => {
+      const repository = deps.planRepositoryFactory(tx);
 
       const conflict = await repository.checkNameConflict(
         accountId,
-        data.scope as PlanScope,
+        data.scope,
         data.name,
       );
 
@@ -46,7 +54,7 @@ export const createPlanService = (db: PrismaClient) => ({
 
       return repository.createPlan({
         name: data.name,
-        scope: data.scope as PlanScope,
+        scope: data.scope,
         monthlyAllowance: data.monthlyAllowance,
         maxPerRequest: data.maxPerRequest,
         ownerAccountId: accountId,
@@ -55,7 +63,7 @@ export const createPlanService = (db: PrismaClient) => ({
   },
 
   async getPlan(accountId: string, planId: string) {
-    const repository = createPlanRepository(db);
+    const repository = deps.planRepositoryFactory();
     const plan = await repository.findPlanByIdForAccount(planId, accountId);
 
     if (!plan) {
@@ -66,8 +74,8 @@ export const createPlanService = (db: PrismaClient) => ({
   },
 
   async updatePlan(accountId: string, planId: string, data: UpdatePlanInput) {
-    return db.$transaction(async (tx) => {
-      const repository = createPlanRepository(tx);
+    return deps.transactionManager.run(async (tx) => {
+      const repository = deps.planRepositoryFactory(tx);
 
       const plan = await repository.findPlanByIdForAccount(planId, accountId);
 

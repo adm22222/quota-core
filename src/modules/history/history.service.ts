@@ -1,4 +1,3 @@
-import type { PrismaClient, Outcome } from '../../generated/prisma/client.ts';
 import { decodeCursor, encodeCursor } from '../../helpers/cursor.ts';
 import {
   formatMonth,
@@ -6,22 +5,19 @@ import {
   rejectFutureMonths,
 } from '../../helpers/month.ts';
 import { createHistoryRepository } from './history.repository.ts';
-import type { HistoryQuery } from './history.schema.ts';
-import { z } from 'zod';
+import { historyCursorSchema, type HistoryQuery } from './history.schema.ts';
+import type { RuleViolation } from '../../shared/types.ts';
 
-const historyCursorSchema = z.object({
-  processedAt: z.string().transform((value) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) throw new Error('invalid cursor');
-    return date;
-  }),
-  id: z.string().uuid(),
-});
+import type { RepositoryFactory } from '../../shared/transaction-manager.ts';
 
-export const createHistoryService = (db: PrismaClient) => {
-  const repository = createHistoryRepository(db);
+type HistoryRepository = ReturnType<typeof createHistoryRepository>;
+
+export const createHistoryService = (deps: {
+  historyRepositoryFactory: RepositoryFactory<HistoryRepository>;
+}) => {
   return {
     async getHistory(accountId: string, query: HistoryQuery) {
+      const repository = deps.historyRepositoryFactory();
       let month: Date | undefined;
       if (query.month) {
         rejectFutureMonths(query.month);
@@ -31,7 +27,7 @@ export const createHistoryService = (db: PrismaClient) => {
         accountId,
         userRef: query.userRef,
         month,
-        outcome: query.outcome as Outcome | undefined,
+        outcome: query.outcome,
         limit: query.limit,
         cursor: decodeCursor(query.cursor, historyCursorSchema),
       });
@@ -39,16 +35,11 @@ export const createHistoryService = (db: PrismaClient) => {
       const items = hasNextPage ? rows.slice(0, query.limit) : rows;
       return {
         items: items.map((row) => {
-          const snapshot = row.limitsSnapshot as {
-            account: unknown;
-            user: unknown;
-          };
-          const violations = (row.violations ?? []) as Array<{
-            level: string;
-            rule: string;
-            limit: number;
-            actual: number;
-          }>;
+          const snapshot = row.limitsSnapshot;
+          const violations: Pick<
+            RuleViolation,
+            'level' | 'rule' | 'limit' | 'actual'
+          >[] = row.violations ?? [];
           const mapViolation = ({
             actual,
             ...violation

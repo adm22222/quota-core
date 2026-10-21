@@ -3,6 +3,7 @@ import type {
   Prisma,
   PrismaClient,
 } from '../../generated/prisma/client.ts';
+import type { ConsumeSnapshot, RuleViolation } from '../../shared/types.ts';
 
 export interface HistoryRow {
   id: string;
@@ -10,8 +11,8 @@ export interface HistoryRow {
   userRef: string;
   units: number;
   outcome: Outcome;
-  violations: unknown[];
-  limitsSnapshot: unknown;
+  violations: Pick<RuleViolation, 'level' | 'rule' | 'limit' | 'actual'>[] | null;
+  limitsSnapshot: ConsumeSnapshot;
   month: Date;
   processedAt: Date;
 }

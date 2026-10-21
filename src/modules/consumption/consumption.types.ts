@@ -1,18 +1,21 @@
-import type { PlanLimits, RuleLevel, RuleType } from '../rules/rule.types.ts';
+import type {
+  ConsumeSnapshot,
+  LevelStatus,
+  PlanLimits,
+  PlanWithLimits,
+  RuleLevel,
+  RuleType,
+  RuleViolation,
+} from '../../shared/types.ts';
 
-export type PlanWithLimits = { id: string; name: string } & PlanLimits;
-
-export interface LevelStatus extends PlanLimits {
-  planId: string;
-  planName: string;
-  consumed: number;
-  remaining: number;
-}
-
-export interface ConsumeSnapshot {
-  account: LevelStatus;
-  user: LevelStatus;
-}
+export type {
+  ConsumeSnapshot,
+  LevelStatus,
+  PlanLimits,
+  PlanWithLimits,
+  RuleLevel,
+  RuleType,
+} from '../../shared/types.ts';
 
 export interface ConsumeViolation {
   level: RuleLevel;
@@ -29,13 +32,7 @@ export const isConsumeSnapshot = (value: unknown): value is ConsumeSnapshot => {
 
 export const isRuleViolation = (
   value: unknown,
-): value is {
-  level: RuleLevel;
-  rule: RuleType;
-  limit: number;
-  actual: number;
-  remaining?: number;
-} => {
+): value is RuleViolation => {
   if (!isRecord(value)) return false;
 
   return (
