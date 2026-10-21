@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetDb } from '../helpers/test-db.ts';
 import request from 'supertest';
 import app from '../../src/app.ts';
@@ -206,6 +206,42 @@ describe('Consume API Integration Tests', () => {
       const r2 = await consume(apiKey, 'bob', 15, 'req-2');
       expect(r2.body.account.consumed).toBe(25);
       expect(r2.body.user.consumed).toBe(15);
+    });
+    it('should reset monthly counters at month rollover while preserving past months', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-15T12:00:00Z'));
+
+      const { apiKey } = await createAccount();
+      const newUser = await createUser(apiKey, 'alice');
+      expect(newUser.status).toBe(201);
+      const req1 = await consume(apiKey, 'alice', 20, 'req-1');
+      expect(req1.body.accepted).toBe(true);
+      const oct = await request(app)
+        .get('/api/v1/usage')
+        .set('X-API-Key', apiKey);
+      expect(oct.body.month).toBe('2026-10');
+      expect(oct.body.account.consumed).toBe(20);
+
+      vi.setSystemTime(new Date('2026-11-01T00:00:01Z'));
+
+      const nov = await request(app)
+        .get('/api/v1/usage')
+        .set('X-API-Key', apiKey);
+      expect(nov.body.month).toBe('2026-11');
+      expect(nov.body.account.consumed).toBe(0);
+
+      const octAgain = await request(app)
+        .get('/api/v1/usage?month=2026-10')
+        .set('X-API-Key', apiKey);
+      expect(octAgain.body.account.consumed).toBe(20);
+
+      await consume(apiKey, 'alice', 5, 'req-2');
+      const nov2 = await request(app)
+        .get('/api/v1/usage')
+        .set('X-API-Key', apiKey);
+      expect(nov2.body.account.consumed).toBe(5);
+
+      vi.useRealTimers();
     });
   });
 
@@ -705,6 +741,36 @@ describe('Consume API Integration Tests', () => {
   });
 
   describe('Integration', () => {
+    it('should paginate usage users with the returned cursor', async () => {
+      const { apiKey } = await createAccount();
+      await createUser(apiKey, 'alice');
+      await createUser(apiKey, 'bob');
+      await createUser(apiKey, 'adam');
+
+      const firstPage = await request(app)
+        .get('/api/v1/usage')
+        .query({ limit: 2 })
+        .set('X-API-Key', apiKey);
+
+      expect(firstPage.status).toBe(200);
+      expect(
+        firstPage.body.users.map((user: { userRef: string }) => user.userRef),
+      ).toEqual(['adam', 'alice']);
+      expect(firstPage.body.nextCursor).toEqual(expect.any(String));
+
+      const secondPage = await request(app)
+        .get('/api/v1/usage')
+        .query({ limit: 2, cursor: firstPage.body.nextCursor })
+        .set('X-API-Key', apiKey);
+
+      expect(secondPage.status).toBe(200);
+      expect(secondPage.body.users.length).toBe(1);
+      expect(
+        secondPage.body.users.map((user: { userRef: string }) => user.userRef),
+      ).toEqual(['bob']);
+      expect(secondPage.body.nextCursor).toBeNull();
+    });
+
     it('should reject after plan downgrade below consumption', async () => {
       const { apiKey } = await createAccount();
 
@@ -837,5 +903,75 @@ describe('Consume API Integration Tests', () => {
       const r2 = await consume(apiKey, 'alice', 50, 'req-2');
       expect(r2.body.accepted).toBe(true);
     });
+  });
+  describe('Concurrency', () => {
+    it('should maintain invariants under 200 parallel consume requests', async () => {
+      const { apiKey } = await createAccount();
+
+      const userPlan = await createCustomPlan(apiKey, {
+        scope: 'USER',
+        monthlyAllowance: 2000,
+        maxPerRequest: 100,
+      });
+      await createUser(apiKey, 'alice', userPlan.body.id);
+      await createUser(apiKey, 'bob', userPlan.body.id);
+      await createUser(apiKey, 'carol', userPlan.body.id);
+
+      const users = ['alice', 'bob', 'carol'];
+      const UNITS = 5;
+      const N = 200;
+
+      const requests = Array.from({ length: N }, (_, i) => {
+        const userRef = users[i % users.length];
+
+        const requestId =
+          i % 10 === 9 ? `parallel-req-${i - 1}` : `parallel-req-${i}`;
+
+        return request(app)
+          .post('/api/v1/consume')
+          .set('X-API-Key', apiKey)
+          .send({ userRef, units: UNITS, requestId });
+      });
+
+      const responses = await Promise.all(requests);
+      // console.log('res', responses[0].body);
+
+      const statuses = responses.map((r) => r.status);
+      expect(statuses.every((s) => [200, 409].includes(s))).toBe(true);
+
+      const acceptedUnique = new Set<string>();
+      responses.forEach((r) => {
+        if (r.status === 200 && r.body.accepted) {
+          acceptedUnique.add(r.body.requestId);
+        }
+      });
+      // console.log('acceptedUnique', acceptedUnique.size);
+      const expectedAcceptedUnits = acceptedUnique.size * UNITS;
+
+      const u = await usage(apiKey);
+      const accountConsumed = u.body.account.consumed;
+      const userSum = u.body.users.reduce(
+        (s: number, x: any) => s + x.consumed,
+        0,
+      );
+
+      expect(accountConsumed).toBe(expectedAcceptedUnits);
+      expect(userSum).toBe(expectedAcceptedUnits);
+
+      expect(accountConsumed).toBeLessThanOrEqual(
+        u.body.account.monthlyAllowance,
+      );
+      for (const user of u.body.users) {
+        expect(user.consumed).toBeLessThanOrEqual(user.monthlyAllowance);
+      }
+
+      const history = await request(app)
+        .get('/api/v1/history?limit=200')
+        .set('X-API-Key', apiKey);
+      for (const item of history.body.items) {
+        expect(item.outcome).not.toBeNull();
+        expect(['ACCEPTED', 'REJECTED']).toContain(item.outcome);
+      }
+    }, 15_000);
   });
 });
