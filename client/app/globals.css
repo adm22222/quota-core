@@ -124,7 +124,7 @@ nav button,
 nav button:hover,
 nav button.selected {
   color: var(--text);
-  background: #14253b;
+  background: #3ecf8e;
 }
 nav button.selected {
   box-shadow: inset 2px 0 var(--cyan);

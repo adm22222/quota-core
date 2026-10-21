@@ -30,9 +30,20 @@ export function PlansTab({
   });
   useEffect(() => {
     api<{ items: Plan[] }>(`/plans?scope=${scope}`)
-      .then((x) => setPlans(x.items))
+      .then((x) => {
+        if (scope !== 'ACCOUNT') {
+          setPlans(x.items);
+          return;
+        }
+        const current = account.accountPlan;
+        setPlans(
+          x.items.some((plan) => plan.id === current.id)
+            ? x.items
+            : [current, ...x.items],
+        );
+      })
       .catch((e) => setError(e.message));
-  }, [scope, setError]);
+  }, [account.accountPlan, scope, setError]);
   async function create(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -157,7 +168,6 @@ export function PlansTab({
               className="button secondary wide"
               disabled={
                 busy ||
-                plan.isPredefined ||
                 plan.id === account.accountPlan.id ||
                 scope !== 'ACCOUNT'
               }
@@ -165,9 +175,7 @@ export function PlansTab({
             >
               {plan.id === account.accountPlan.id
                 ? 'Active plan'
-                : plan.isPredefined
-                  ? 'Read only'
-                  : 'Switch plan'}
+                : 'Switch plan'}
             </button>
             {!plan.isPredefined && (
               <button

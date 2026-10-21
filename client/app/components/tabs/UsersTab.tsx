@@ -14,22 +14,44 @@ export function UsersTab({
   const [usage, setUsage] = useState<Usage | null>(null);
   const [userPlans, setUserPlans] = useState<Plan[]>([]);
   const [month, setMonth] = useState(monthNow());
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(0);
+  const [pageCursors, setPageCursors] = useState<
+    Array<{ users?: string; usage?: string }>
+  >([{}]);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [ref, setRef] = useState('');
   const [planId, setPlanId] = useState('');
   const [busy, setBusy] = useState(false);
+  const cursor = pageCursors[page] ?? {};
+  const cursorKey = `${cursor.users ?? ''}:${cursor.usage ?? ''}`;
   useEffect(() => {
+    const query = new URLSearchParams({ limit: String(pageSize) });
+    if (cursor.users) query.set('cursor', cursor.users);
+    const usageQuery = new URLSearchParams({ month, limit: String(pageSize) });
+    if (cursor.usage) usageQuery.set('cursor', cursor.usage);
     Promise.all([
-      api<{ items: User[] }>('/users?limit=100'),
-      api<Usage>(`/usage?month=${month}&limit=100`),
+      api<{ items: User[]; nextCursor?: string | null }>(`/users?${query}`),
+      api<Usage>(`/usage?${usageQuery}`),
       api<{ items: Plan[] }>('/plans?scope=USER'),
     ])
       .then(([u, x, p]) => {
         setUsers(u.items);
         setUsage(x);
         setUserPlans(p.items);
+        const nextUsers = u.nextCursor ?? undefined;
+        const nextUsage = x.nextCursor ?? undefined;
+        setHasNextPage(Boolean(nextUsers && nextUsage));
+        if (nextUsers && nextUsage) {
+          setPageCursors((old) => {
+            const next = old.slice(0, page + 1);
+            next[page + 1] = { users: nextUsers, usage: nextUsage };
+            return next;
+          });
+        }
       })
       .catch((e) => setError(e.message));
-  }, [month, setError]);
+  }, [cursorKey, month, page, pageSize, setError]);
   async function create(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -42,6 +64,26 @@ export function UsersTab({
       setUsers((old) => [...old, u]);
       setRef('');
       setPlanId('');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function changePlan(userRef: string, nextPlanId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api<User>(
+        `/users/${encodeURIComponent(userRef)}/plan`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ planId: nextPlanId }),
+        },
+      );
+      setUsers((old) =>
+        old.map((user) => (user.userRef === updated.userRef ? updated : user)),
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -86,8 +128,27 @@ export function UsersTab({
             <input
               type="month"
               value={month}
-              onChange={(e) => setMonth(e.target.value)}
+              onChange={(e) => {
+                setMonth(e.target.value);
+                setPage(0);
+                setPageCursors([{}]);
+              }}
             />
+            <select
+              value={pageSize}
+              aria-label="Rows per page"
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(0);
+                setPageCursors([{}]);
+              }}
+            >
+              {[1, 5, 10, 50, 100].map((size) => (
+                <option key={size} value={size}>
+                  {size} per page
+                </option>
+              ))}
+            </select>
             <span className="subtle">Usage for {month}</span>
           </div>
         </div>
@@ -111,7 +172,18 @@ export function UsersTab({
                     <strong>{user.userRef}</strong>
                   </span>
                   <span>
-                    <span className="badge">{user.plan.name}</span>
+                    <select
+                      value={user.plan.id}
+                      disabled={busy}
+                      aria-label={`Plan for ${user.userRef}`}
+                      onChange={(e) => changePlan(user.userRef, e.target.value)}
+                    >
+                      {userPlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name}
+                        </option>
+                      ))}
+                    </select>
                   </span>
                   <span>
                     <strong>{level ? number(level.consumed) : '0'}</strong>
@@ -124,6 +196,23 @@ export function UsersTab({
         ) : (
           <Empty text="Add a user to begin metering individual usage." />
         )}
+        <div className="pagination" aria-label="Users and usage pagination">
+          <button
+            className="button secondary"
+            disabled={busy || page === 0}
+            onClick={() => setPage((current) => Math.max(0, current - 1))}
+          >
+            Previous
+          </button>
+          <span>Page {page + 1}</span>
+          <button
+            className="button secondary"
+            disabled={busy || !hasNextPage}
+            onClick={() => setPage((current) => current + 1)}
+          >
+            Next
+          </button>
+        </div>
       </Card>
     </>
   );
