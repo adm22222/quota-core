@@ -503,12 +503,12 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example:
-            error:
-              {
-                code: validation_error,
-                message: units must be a positive integer,
-                details: { field: units },
-              }
+            success: false
+            code: VALIDATION_ERROR
+            message: Validation failed for field: units
+            details:
+              - field: units
+                message: Units must be a positive integer
     Unauthorized:
       description: Missing or invalid API key (`invalid_api_key`)
       content:
@@ -528,27 +528,18 @@ components:
   schemas:
     Error:
       type: object
-      required: [error]
+      required: [success, message, code]
       properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              enum:
-                - invalid_api_key
-                - validation_error
-                - user_not_found
-                - plan_not_found
-                - plan_read_only
-                - plan_scope_mismatch
-                - plan_name_taken
-                - user_exists
-                - request_id_reused_with_different_payload
-                - internal_error
-            message: { type: string }
-            details: { type: object, additionalProperties: true }
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        code:
+          type: string
+          description: Application error code returned by the service.
+        details:
+          description: Optional structured error details. Validation errors return an array of field issues.
 
     PlanScope:
       type: string
@@ -636,11 +627,15 @@ components:
 
     Account:
       type: object
-      required: [id, name, plan, createdAt]
+      required: [id, name, accountPlan, createdAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
-        plan: { $ref: '#/components/schemas/Plan' }
+        accountPlan:
+          {
+            $ref: '#/components/schemas/Plan',
+            description: The plan shared by all users in the account.,
+          }
         createdAt: { type: string, format: date-time }
 
     CreateAccountResponse:
