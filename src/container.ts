@@ -24,6 +24,7 @@ import { createRequestRepository } from './modules/consumption/request.repositor
 import { createUsageRepository } from './modules/usage/usage.repository.ts';
 import { createHistoryRepository } from './modules/history/history.repository.ts';
 import { createRepositoryFactory } from './shared/repository-factory.ts';
+import { createDecisionRepository } from './modules/consumption/decision.repository.ts';
 
 const transactionManager = createTransactionManager(prisma);
 const accountRepositoryFactory = createRepositoryFactory(
@@ -39,6 +40,9 @@ const requestRepositoryFactory = createRepositoryFactory(
 const usageRepositoryFactory = createRepositoryFactory(createUsageRepository);
 const historyRepositoryFactory = createRepositoryFactory(
   createHistoryRepository,
+);
+const decisionRepositoryFactory = createRepositoryFactory(
+  createDecisionRepository,
 );
 
 const accountService = createAccountService({
@@ -58,7 +62,7 @@ const userService = createUserService({
 const consumeService = createConsumeService({
   limitRepositoryFactory,
   requestRepositoryFactory,
-  usageRepositoryFactory,
+  decisionRepositoryFactory,
   transactionManager,
 });
 const usageService = createUsageService({ usageRepositoryFactory });

@@ -11,7 +11,11 @@ export default [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
-      globals: globals.node,
+      globals: {
+        ...globals.node,
+        __ENV: 'readonly',
+        _: 'readonly',
+      },
     },
     rules: js.configs.recommended.rules,
   },

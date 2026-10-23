@@ -26,6 +26,7 @@ FROM dependencies AS build
 COPY prisma ./prisma
 COPY prisma.config.ts tsconfig.json ./
 COPY src ./src
+COPY docs ./docs
 
 # Used by Prisma config during client generation only.
 ENV DATABASE_URL="postgresql://quota_user:build_only@localhost:5432/quota_core?schema=public"
@@ -41,6 +42,7 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY --from=build /app/src ./src
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/docs ./docs
 COPY --from=build /app/prisma.config.ts /app/tsconfig.json ./
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY client/package.json ./client/package.json

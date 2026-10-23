@@ -122,7 +122,7 @@ export const createRequestRepository = (
         rejected_level = ${payload.rejectedLevel}::"rule_level",
         violations = ${JSON.stringify(payload.violations)}::jsonb,
         limits_snapshot = ${snapshotJson}::jsonb,
-        processed_at = CURRENT_TIMESTAMP
+        processed_at = clock_timestamp()
       WHERE id = ${id}::uuid
         AND outcome IS NULL
       RETURNING

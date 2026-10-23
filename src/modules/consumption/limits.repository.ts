@@ -11,6 +11,12 @@ export interface LimitRepository {
     accountPlan: { id: string; name: string } & PlanLimits;
     userPlan: { id: string; name: string } & PlanLimits;
   } | null>;
+  findUserId(
+    accountId: string,
+    externalUserId: string,
+  ): Promise<{
+    id: string;
+  } | null>;
 }
 export const createLimitRepository = (
   db: PrismaClient | Prisma.TransactionClient,
@@ -53,5 +59,11 @@ export const createLimitRepository = (
             userPlan: row.userPlan,
           },
       );
+  },
+  async findUserId(accountId: string, externalUserId: string) {
+    return db.user.findUnique({
+      where: { accountId_externalUserId: { accountId, externalUserId } },
+      select: { id: true },
+    });
   },
 });

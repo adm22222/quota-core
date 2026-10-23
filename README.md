@@ -216,9 +216,18 @@ error behavior. The full test strategy and current gaps are in [`docs/testing.md
 
 ## Performance
 
-k6 load tests are planned but not implemented yet. The reserved Compose profile will be usable after `perf/smoke.js` is
-added; see the planned approach in [`docs/testing.md`](docs/testing.md#planned-k6-tests). Requests for **one account**
-are serialized by design because a shared allowance needs one usage lock, while different accounts can scale independently.
+k6 load tests are implemented under [`perf/`](perf/). The available scripts cover single-account contention, load spread
+across 20 accounts, a rate sweep, duplicate request IDs, and plan updates under load. The recorded results cover the
+first three workloads and include a SQL accounting invariant check.
+
+The optimized single-account run sustained the configured 20 requests/s target for 30 seconds with 601 completed
+iterations, no dropped iterations, no HTTP failures, and 76.45 ms p95 latency. Runs spread across 20 accounts completed
+1,201 iterations with no dropped iterations or HTTP failures, and all 20 accounts passed the accounting invariant. These
+are local development measurements, not production capacity guarantees.
+
+Requests for **one account** still coordinate through a shared usage lock, so account-level contention is an inherent
+limit; different accounts can make progress independently. See [`perf/README.md`](perf/README.md) for commands, workload
+details, results, and accounting checks.
 
 ## Documentation
 
@@ -229,6 +238,7 @@ are serialized by design because a shared allowance needs one usage lock, while 
 | [`docs/openapi.yaml`](docs/openapi.yaml)       | Machine-readable API contract                                             |
 | [`docs/architecture.md`](docs/architecture.md) | Components, module rules, the consume flow                                |
 | [`docs/testing.md`](docs/testing.md)           | Test strategy and how to run it                                           |
+| [`perf/README.md`](perf/README.md)             | Planned k6 performance-testing approach                                   |
 
 ## Known limitations
 
