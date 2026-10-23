@@ -7,9 +7,9 @@ import { prisma } from '../src/shared/prisma.ts';
 it('harness works', async () => {
   await resetDb();
 
-  expect(await prisma.plan.count()).toBe(4);
+  expect(await prisma.plan.count()).toBe(3);
 
-  expect((await request(app).get('/health')).status).toBe(200);
+  expect((await request(app).get('/api/v1/health')).status).toBe(200);
 
   expect(
     (await request(app).post('/api/v1/accounts').send({ name: 'x' })).status,
@@ -18,5 +18,5 @@ it('harness works', async () => {
   await resetDb();
 
   expect(await prisma.account.count()).toBe(0);
-  expect(await prisma.plan.count()).toBe(4);
+  expect(await prisma.plan.count()).toBe(3);
 });
