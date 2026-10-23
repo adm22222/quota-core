@@ -505,10 +505,10 @@ components:
           example:
             success: false
             code: VALIDATION_ERROR
-            message: Validation failed for field: units
+            message: 'Validation failed for field: units'
             details:
               - field: units
-                message: Units must be a positive integer
+                message: 'Units must be a positive integer'
     Unauthorized:
       description: Missing or invalid API key (`invalid_api_key`)
       content:
