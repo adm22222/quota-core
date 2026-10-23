@@ -1,9 +1,10 @@
 import type { Outcome } from '../../generated/prisma/client.ts';
 import { formatMonth, getMonthStart } from '../../helpers/month.ts';
 import { ConflictError, NotFoundError } from '../../shared/errors.ts';
+import { runLimited } from '../../shared/run-limited.ts';
 import { createLimitRepository } from './limits.repository.ts';
 import { createRequestRepository } from './request.repository.ts';
-import { createUsageRepository } from '../usage/usage.repository.ts';
+import type { DecisionRepository } from './decision.repository.ts';
 import { createFingerprint } from './fingerprint.ts';
 import type { CreateConsume } from './consume.schema.ts';
 import { RuleEvaluator } from '../rules/rule-evaluator.ts';
@@ -19,6 +20,9 @@ import type {
   RepositoryFactory,
   TransactionManager,
 } from '../../shared/transaction-manager.ts';
+const ACCOUNT_CONCURRENCY = 3;
+const GLOBAL_TRANSACTION_CONCURRENCY = 8;
+const MAX_WAITING_PER_ACCOUNT = 500;
 
 const toStatus = (
   plan: PlanWithLimits,
@@ -68,7 +72,6 @@ const getStoredPrimaryViolation = (row: {
   units: number;
 }): RuleViolation | null => {
   if (!row.rejectedRule || !row.rejectedLevel) return null;
-
   const stored = fromStoredViolations(row.violations);
   return (
     stored[0] ?? {
@@ -83,122 +86,167 @@ const getStoredPrimaryViolation = (row: {
 
 export type LimitRepository = ReturnType<typeof createLimitRepository>;
 export type RequestRepository = ReturnType<typeof createRequestRepository>;
-export type UsageRepository = ReturnType<typeof createUsageRepository>;
 
 export const createConsumeService = (deps: {
   limitRepositoryFactory: RepositoryFactory<LimitRepository>;
   requestRepositoryFactory: RepositoryFactory<RequestRepository>;
-  usageRepositoryFactory: RepositoryFactory<UsageRepository>;
+  decisionRepositoryFactory: RepositoryFactory<DecisionRepository>;
   transactionManager: TransactionManager;
-}) => ({
-  async consume(accountId: string, input: CreateConsume) {
-    return deps.transactionManager.run(async (tx) => {
-      const month = getMonthStart(new Date().toISOString().slice(0, 7));
-      const limitsRepository = deps.limitRepositoryFactory(tx);
-      const requestRepository = deps.requestRepositoryFactory(tx);
-      const usageRepository = deps.usageRepositoryFactory(tx);
-      const user = await limitsRepository.findUser(accountId, input.userRef);
+}) => {
+  const evaluator = new RuleEvaluator();
 
-      if (!user) throw new NotFoundError('User not found');
-
-      const fingerprint = createFingerprint(input.userRef, input.units);
-      const claimed = await requestRepository.claim({
+  return {
+    async consume(accountId: string, input: CreateConsume) {
+      const result = await runLimited(
         accountId,
-        userId: user.id,
-        requestId: input.requestId,
-        units: input.units,
-        payloadFingerprint: fingerprint,
-        month,
-      });
+        ACCOUNT_CONCURRENCY,
+        async () => {
+          const transactionResult = await runLimited(
+            '__global_transactions__',
+            GLOBAL_TRANSACTION_CONCURRENCY,
+            () =>
+              deps.transactionManager.run(async (tx) => {
+                const month = getMonthStart(
+                  new Date().toISOString().slice(0, 7),
+                );
+                const limitsRepository = deps.limitRepositoryFactory(tx);
+                const requestRepository = deps.requestRepositoryFactory(tx);
+                const decisions = deps.decisionRepositoryFactory(tx);
 
-      if (!claimed) {
-        const existing = await requestRepository.findByRequestId(
-          accountId,
-          input.requestId,
-        );
-        if (!existing)
-          throw new NotFoundError(
-            'Consumption request disappeared after conflict',
+                const user = await limitsRepository.findUserId(
+                  accountId,
+                  input.userRef,
+                );
+
+                if (!user) throw new NotFoundError('User not found');
+
+                const fingerprint = createFingerprint(
+                  input.userRef,
+                  input.units,
+                );
+                const claimed = await requestRepository.claim({
+                  accountId,
+                  userId: user.id,
+                  requestId: input.requestId,
+                  units: input.units,
+                  payloadFingerprint: fingerprint,
+                  month,
+                });
+
+                if (!claimed) {
+                  const existing = await requestRepository.findByRequestId(
+                    accountId,
+                    input.requestId,
+                  );
+                  if (!existing)
+                    throw new NotFoundError(
+                      'Consumption request disappeared after conflict',
+                    );
+                  if (existing.payloadFingerprint !== fingerprint) {
+                    throw new ConflictError(
+                      'requestId was already used with a different payload',
+                      {
+                        code: 'request_id_reused_with_different_payload',
+                      },
+                    );
+                  }
+                  const snapshot = fromStored(existing);
+                  const storedViolations = fromStoredViolations(
+                    existing.violations,
+                  );
+                  const primaryViolation = getStoredPrimaryViolation(existing);
+                  return {
+                    requestId: input.requestId,
+                    userRef: input.userRef,
+                    units: existing.units,
+                    accepted: existing.outcome === 'ACCEPTED',
+                    replayed: true,
+                    reason: primaryViolation
+                      ? toViolation(primaryViolation)
+                      : null,
+                    violations: storedViolations.map(toViolation),
+                    month: formatMonth(existing.month),
+                    processedAt: existing.processedAt,
+                    ...snapshot,
+                  };
+                }
+
+                let accountConsumed = await decisions.lockAccountUsage(
+                  accountId,
+                  month,
+                );
+                if (accountConsumed === null) {
+                  await decisions.ensureAccountUsage(accountId, month);
+                  accountConsumed = await decisions.lockAccountUsage(
+                    accountId,
+                    month,
+                  );
+                  if (accountConsumed === null)
+                    throw new Error('account usage row missing after ensure');
+                }
+
+                const ctx = await decisions.readContext(user.id, month);
+
+                const decision = evaluator.evaluate({
+                  units: input.units,
+                  account: {
+                    limits: ctx.accountPlan,
+                    consumed: accountConsumed,
+                  },
+                  user: { limits: ctx.userPlan, consumed: ctx.userConsumed },
+                });
+
+                const delta = decision.allowed ? input.units : 0;
+                const snapshot: ConsumeSnapshot = {
+                  account: toStatus(ctx.accountPlan, accountConsumed + delta),
+                  user: toStatus(ctx.userPlan, ctx.userConsumed + delta),
+                };
+                const violations = decision.violations.map(toViolation);
+
+                const processedAt = decision.allowed
+                  ? (
+                      await decisions.recordAccepted({
+                        requestRowId: claimed.id,
+                        accountId,
+                        userId: user.id,
+                        month,
+                        units: input.units,
+                        snapshot,
+                      })
+                    ).processedAt
+                  : (
+                      await requestRepository.finalize(claimed.id, {
+                        outcome: 'REJECTED' satisfies Outcome,
+                        rejectedRule: decision.primary?.rule ?? null,
+                        rejectedLevel: decision.primary?.level ?? null,
+                        violations: decision.violations,
+                        limitsSnapshot: snapshot,
+                      })
+                    ).processedAt;
+
+                return {
+                  requestId: input.requestId,
+                  userRef: input.userRef,
+                  units: input.units,
+                  accepted: decision.allowed,
+                  replayed: false,
+                  reason: decision.primary
+                    ? toViolation(decision.primary)
+                    : null,
+                  violations,
+                  month: formatMonth(month),
+                  processedAt,
+                  ...snapshot,
+                };
+              }),
           );
-        if (existing.payloadFingerprint !== fingerprint) {
-          throw new ConflictError(
-            'requestId was already used with a different payload',
-            {
-              code: 'request_id_reused_with_different_payload',
-            },
-          );
-        }
-        const snapshot = fromStored(existing);
-        const storedViolations = fromStoredViolations(existing.violations);
-        const primaryViolation = getStoredPrimaryViolation(existing);
-        return {
-          requestId: input.requestId,
-          userRef: input.userRef,
-          units: existing.units,
-          accepted: existing.outcome === 'ACCEPTED',
-          replayed: true,
-          reason: primaryViolation ? toViolation(primaryViolation) : null,
-          violations: storedViolations.map(toViolation),
-          month: formatMonth(existing.month),
-          processedAt: existing.processedAt,
-          ...snapshot,
-        };
-      }
-
-      const usage = await usageRepository.ensureAndLock({
-        accountId,
-        userId: user.id,
-        month,
-      });
-
-      const evaluator = new RuleEvaluator();
-      const decision = evaluator.evaluate({
-        units: input.units,
-        account: { limits: user.accountPlan, consumed: usage.accountConsumed },
-        user: { limits: user.userPlan, consumed: usage.userConsumed },
-      });
-
-      let accountConsumed = usage.accountConsumed;
-      let userConsumed = usage.userConsumed;
-      if (decision.allowed) {
-        const updated = await usageRepository.incrementBoth({
-          accountId,
-          userId: user.id,
-          month,
-          delta: input.units,
-        });
-        accountConsumed = updated.accountConsumed;
-        userConsumed = updated.userConsumed;
-      }
-
-      const snapshot: ConsumeSnapshot = {
-        account: toStatus(user.accountPlan, accountConsumed),
-        user: toStatus(user.userPlan, userConsumed),
-      };
-      const violations = decision.violations.map(toViolation);
-      const outcome: Outcome = decision.allowed ? 'ACCEPTED' : 'REJECTED';
-      const finalized = await requestRepository.finalize(claimed.id, {
-        outcome,
-        rejectedRule: decision.primary?.rule ?? null,
-        rejectedLevel: decision.primary?.level ?? null,
-        violations: decision.violations,
-        limitsSnapshot: snapshot,
-      });
-
-      return {
-        requestId: input.requestId,
-        userRef: input.userRef,
-        units: input.units,
-        accepted: decision.allowed,
-        replayed: false,
-        reason: decision.primary ? toViolation(decision.primary) : null,
-        violations,
-        month: formatMonth(finalized.month),
-        processedAt: finalized.processedAt,
-        ...snapshot,
-      };
-    });
-  },
-});
+          return transactionResult;
+        },
+        MAX_WAITING_PER_ACCOUNT,
+      );
+      return result;
+    },
+  };
+};
 
 export type ConsumeService = ReturnType<typeof createConsumeService>;

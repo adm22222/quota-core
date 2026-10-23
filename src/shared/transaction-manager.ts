@@ -9,5 +9,9 @@ export type RepositoryFactory<T> = (tx?: Prisma.TransactionClient) => T;
 export const createTransactionManager = (
   db: PrismaClient,
 ): TransactionManager => ({
-  run: (callback) => db.$transaction(callback),
+  run: (callback) =>
+    db.$transaction(callback, {
+      maxWait: 5_000,
+      timeout: 5_000,
+    }),
 });
